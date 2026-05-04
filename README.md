@@ -581,20 +581,3 @@ The importer auto-detects column headers. Supported column names:
 | Finishing Time | finishing time, finish time |
 | Downtime | downtime, down time |
 | Remarks | remarks, notes, observation |
-
-## Equipment Import Format
-
-You can also import equipment data directly. Select "Equipment" as the import type. The importer auto-detects column headers. Supported column names:
-
-| Field | Accepted Headers | Required |
-|-------|------------------|----------|
-| Equipment Name | equipment name, name, equipment | Yes |
-| Equipment Code | equipment code, code | No |
-| Plant | plant, plant name, department | No |
-| Equipment Group | equipment group, group, category | No |
-| Status | status, state, condition | No |
-
-**Notes:**
-- Equipment with matching names will be updated, others will be created
-- Plants and equipment groups will be created automatically if they don't exist
-- Status values are normalized: "active", "working", "operational" → "active"; "inactive", "maintenance", "repair" → "inactive"

@@ -1,9 +1,8 @@
 import { useCallback, useState } from 'react'
 import { AlertTriangle, CheckCircle, FileSpreadsheet, Upload } from 'lucide-react'
-import { commitImport, commitEquipmentImport, previewEquipmentImport, previewImport } from '../services/api'
+import { commitImport, previewImport } from '../services/api'
 import LoadingSpinner from '../components/LoadingSpinner'
 
-type ImportType = 'maintenance' | 'equipment'
 type Step = 'upload' | 'preview' | 'done'
 
 interface PreviewData {
@@ -14,7 +13,6 @@ interface PreviewData {
 }
 
 export default function ImportPage() {
-  const [importType, setImportType] = useState<ImportType>('maintenance')
   const [step, setStep] = useState<Step>('upload')
   const [file, setFile] = useState<File | null>(null)
   const [sheetName, setSheetName] = useState<string>('')
@@ -45,8 +43,7 @@ export default function ImportPage() {
     setLoading(true)
     setError('')
     try {
-      const previewFunc = importType === 'maintenance' ? previewImport : previewEquipmentImport
-      const data = await previewFunc(file, sheetName || undefined)
+      const data = await previewImport(file, sheetName || undefined)
       setPreview(data)
       setSheetName(data.selected_sheet)
       setStep('preview')
@@ -76,9 +73,8 @@ export default function ImportPage() {
     setLoading(true)
     setError('')
     try {
-      const commitFunc = importType === 'maintenance' ? commitImport : commitEquipmentImport
-      const result = await commitFunc(file, sheetName || undefined)
-      setResult(result)
+      const res = await commitImport(file, sheetName || undefined)
+      setResult(res)
       setStep('done')
     } catch (e: any) {
       setError(e?.response?.data?.detail || 'Import failed')
@@ -152,51 +148,15 @@ export default function ImportPage() {
 
       {step === 'upload' && (
         <div className="card space-y-6">
-          {/* Import Type Selector */}
-          <div>
-            <h2 className="font-semibold text-gray-700 mb-3">Select Import Type</h2>
-            <div className="flex gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="importType"
-                  value="maintenance"
-                  checked={importType === 'maintenance'}
-                  onChange={(e) => setImportType(e.target.value as ImportType)}
-                  className="text-blue-600"
-                />
-                <span className="text-sm font-medium">Maintenance Records</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="importType"
-                  value="equipment"
-                  checked={importType === 'equipment'}
-                  onChange={(e) => setImportType(e.target.value as ImportType)}
-                  className="text-blue-600"
-                />
-                <span className="text-sm font-medium">Equipment</span>
-              </label>
-            </div>
-          </div>
-
           <div>
             <h2 className="font-semibold text-gray-700 mb-1">Upload Excel File</h2>
             <p className="text-sm text-gray-500">
-              Upload your {importType === 'maintenance' ? 'maintenance log' : 'equipment list'} Excel file (.xlsx or .xls).
-              The importer will auto-detect column headers.
+              Upload your maintenance log Excel file (.xlsx or .xls). The importer
+              will auto-detect column headers.
             </p>
-            {importType === 'maintenance' && (
-              <p className="text-xs text-gray-500 mt-2">
-                Note: Downtime is auto-calculated from arrival and finishing times when both are provided. If a matching record already exists, it will be updated instead of duplicated.
-              </p>
-            )}
-            {importType === 'equipment' && (
-              <p className="text-xs text-gray-500 mt-2">
-                Note: Plants and equipment groups will be created automatically if they don't exist. Equipment with matching names will be updated.
-              </p>
-            )}
+            <p className="text-xs text-gray-500 mt-2">
+              Note: Downtime is auto-calculated from arrival and finishing times when both are provided. If a matching record already exists, it will be updated instead of duplicated.
+            </p>
           </div>
 
           {/* Drop zone */}

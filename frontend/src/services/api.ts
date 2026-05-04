@@ -274,35 +274,4 @@ export async function commitImport(
   return res.data
 }
 
-export async function previewEquipmentImport(
-  file: File,
-  sheetName?: string
-): Promise<{
-  sheets: string[]
-  selected_sheet: string
-  total_records: number
-  preview: Record<string, unknown>[]
-}> {
-  const form = new FormData()
-  form.append('file', file)
-  const res = await api.post('/import/equipment/preview', form, {
-    params: sheetName ? { sheet_name: sheetName } : {},
-    headers: { 'Content-Type': 'multipart/form-data' },
-  })
-  return res.data
-}
-
-export async function commitEquipmentImport(
-  file: File,
-  sheetName?: string
-): Promise<{ saved: number; created: number; updated: number; errors: { row: number; error: string }[]; message: string }> {
-  const form = new FormData()
-  form.append('file', file)
-  const res = await api.post('/import/equipment/commit', form, {
-    params: sheetName ? { sheet_name: sheetName } : {},
-    headers: { 'Content-Type': 'multipart/form-data' },
-  })
-  return res.data
-}
-
 export default api
