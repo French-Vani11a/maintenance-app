@@ -56,6 +56,12 @@ export interface RecordsResponse {
   records: MaintenanceRecord[]
 }
 
+export interface DowntimeByEquipment {
+  name: string
+  total_downtime: number
+  fault_count: number
+}
+
 export interface DashboardStats {
   month: number
   year: number
@@ -66,7 +72,7 @@ export interface DashboardStats {
   total_downtime_minutes: number
   avg_repair_time_minutes: number
   top_equipment: Array<{ name: string; fault_count: number; total_downtime: number }>
-  downtime_by_plant: Array<{ name: string; total_downtime: number; fault_count: number }>
+  downtime_by_plant: Array<{ id: number; name: string; total_downtime: number; fault_count: number }>
   faults_by_day: Array<{ date: string; count: number; downtime: number }>
   top_artisans: Array<{ name: string; job_count: number; total_downtime: number }>
 }

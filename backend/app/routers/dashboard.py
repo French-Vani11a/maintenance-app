@@ -16,6 +16,31 @@ from app.security import get_current_user
 router = APIRouter()
 
 
+def build_period_filters(
+    date_from: Optional[date_type],
+    date_to: Optional[date_type],
+    month: Optional[int],
+    year: Optional[int],
+):
+    now = datetime.now()
+    month = month or now.month
+    year = year or now.year
+
+    period_filters = []
+    if date_from or date_to:
+        if date_from:
+            period_filters.append(MaintenanceRecord.record_date >= datetime.combine(date_from, time.min))
+        if date_to:
+            period_filters.append(MaintenanceRecord.record_date <= datetime.combine(date_to, time.max))
+    else:
+        period_filters.extend([
+            extract("month", MaintenanceRecord.record_date) == month,
+            extract("year", MaintenanceRecord.record_date) == year,
+        ])
+
+    return period_filters
+
+
 @router.get("/stats")
 def get_dashboard_stats(
     month: Optional[int] = Query(None),
@@ -83,13 +108,14 @@ def get_dashboard_stats(
     # Downtime by plant
     downtime_by_plant = (
         db.query(
+            Plant.id,
             Plant.name,
             func.sum(MaintenanceRecord.downtime_minutes).label("total_downtime"),
             func.count(MaintenanceRecord.id).label("fault_count"),
         )
         .join(MaintenanceRecord, Plant.id == MaintenanceRecord.plant_id)
         .filter(*period_filters)
-        .group_by(Plant.name)
+        .group_by(Plant.id, Plant.name)
         .order_by(func.sum(MaintenanceRecord.downtime_minutes).desc())
         .all()
     )
@@ -142,6 +168,7 @@ def get_dashboard_stats(
         ],
         "downtime_by_plant": [
             {
+                "id": p.id,
                 "name": p.name,
                 "total_downtime": p.total_downtime or 0,
                 "fault_count": p.fault_count,
@@ -161,3 +188,37 @@ def get_dashboard_stats(
             for a in top_artisans
         ],
     }
+
+
+@router.get("/equipment-downtime")
+def get_equipment_downtime_for_plant(
+    plant_id: int = Query(...),
+    date_from: Optional[date_type] = Query(None),
+    date_to: Optional[date_type] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    period_filters = build_period_filters(date_from, date_to, None, None)
+
+    equipment_downtime = (
+        db.query(
+            Equipment.equipment_name,
+            func.sum(MaintenanceRecord.downtime_minutes).label("total_downtime"),
+            func.count(MaintenanceRecord.id).label("fault_count"),
+        )
+        .join(MaintenanceRecord, Equipment.id == MaintenanceRecord.equipment_id)
+        .filter(*period_filters, MaintenanceRecord.plant_id == plant_id)
+        .group_by(Equipment.equipment_name)
+        .order_by(func.sum(MaintenanceRecord.downtime_minutes).desc())
+        .limit(10)
+        .all()
+    )
+
+    return [
+        {
+            "name": e.equipment_name,
+            "total_downtime": e.total_downtime or 0,
+            "fault_count": e.fault_count,
+        }
+        for e in equipment_downtime
+    ]

@@ -15,15 +15,13 @@ import {
   Legend,
   Line,
   LineChart,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
-import { getDashboardStatsByDateRange } from '../services/api'
-import type { DashboardStats } from '../types'
+import { getDashboardStatsByDateRange, getDowntimeByEquipmentForPlant } from '../services/api'
+import type { DashboardStats, DowntimeByEquipment } from '../types'
 import LoadingSpinner from '../components/LoadingSpinner'
 
 const COLORS = [
@@ -69,14 +67,46 @@ export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [selectedPlant, setSelectedPlant] = useState<{ id: number; name: string } | null>(null)
+  const [equipmentDowntime, setEquipmentDowntime] = useState<DowntimeByEquipment[]>([])
+  const [equipmentLoading, setEquipmentLoading] = useState(false)
+  const [equipmentError, setEquipmentError] = useState('')
 
   useEffect(() => {
     setLoading(true)
+    setError('')
     getDashboardStatsByDateRange(dateFrom || undefined, dateTo || undefined)
-      .then(setStats)
+      .then((data) => {
+        setStats(data)
+        if (data.downtime_by_plant.length > 0) {
+          setSelectedPlant((current) =>
+            current && data.downtime_by_plant.some((p) => p.id === current.id)
+              ? current
+              : { id: data.downtime_by_plant[0].id, name: data.downtime_by_plant[0].name }
+          )
+        } else {
+          setSelectedPlant(null)
+        }
+      })
       .catch(() => setError('Failed to load dashboard data'))
       .finally(() => setLoading(false))
   }, [dateFrom, dateTo])
+
+  useEffect(() => {
+    if (!selectedPlant) {
+      setEquipmentDowntime([])
+      setEquipmentError('')
+      return
+    }
+
+    setEquipmentLoading(true)
+    setEquipmentError('')
+
+    getDowntimeByEquipmentForPlant(selectedPlant.id, dateFrom || undefined, dateTo || undefined)
+      .then(setEquipmentDowntime)
+      .catch(() => setEquipmentError('Failed to load equipment downtime for selected plant'))
+      .finally(() => setEquipmentLoading(false))
+  }, [selectedPlant, dateFrom, dateTo])
 
   function fmtHours(mins: number) {
     const h = Math.floor(mins / 60)
@@ -216,6 +246,7 @@ export default function Dashboard() {
         {/* Downtime by plant */}
         <div className="card">
           <h2 className="mb-4 text-sm font-semibold text-gray-700">Downtime by Plant (minutes)</h2>
+          <p className="mb-4 text-xs text-gray-500">Click a plant bar to view downtime by equipment in that plant.</p>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={stats.downtime_by_plant} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -225,13 +256,92 @@ export default function Dashboard() {
                 formatter={(v: number) => [`${v} min`, 'Downtime']}
               />
               <Bar dataKey="total_downtime" name="Downtime" radius={[0, 4, 4, 0]}>
-                {stats.downtime_by_plant.map((_, i) => (
-                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                {stats.downtime_by_plant.map((plant, i) => (
+                  <Cell
+                    key={plant.id}
+                    fill={COLORS[i % COLORS.length]}
+                    cursor="pointer"
+                    onClick={() => {
+                      if (selectedPlant?.id === plant.id) {
+                        setSelectedPlant(null)
+                      } else {
+                        setSelectedPlant({ id: plant.id, name: plant.name })
+                      }
+                    }}
+                  />
                 ))}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
+      </div>
+
+      <div className="card">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="mb-1 text-sm font-semibold text-gray-700">
+              {selectedPlant ? `Downtime by Equipment — ${selectedPlant.name}` : 'Downtime by Equipment'}
+            </h2>
+            <p className="text-xs text-gray-500">
+              {selectedPlant
+                ? 'Showing equipment downtime for the selected plant.'
+                : 'Select a plant from the chart above to drill into its equipment downtime.'}
+            </p>
+          </div>
+          {selectedPlant && (
+            <button
+              type="button"
+              className="btn-secondary btn-xs"
+              onClick={() => setSelectedPlant(null)}
+            >
+              Clear selection
+            </button>
+          )}
+        </div>
+
+        {equipmentLoading ? (
+          <div className="flex h-64 items-center justify-center">
+            <LoadingSpinner size="lg" />
+          </div>
+        ) : equipmentError ? (
+          <div className="flex h-64 items-center justify-center text-red-600">
+            {equipmentError}
+          </div>
+        ) : selectedPlant ? (
+          equipmentDowntime.length > 0 ? (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={equipmentDowntime} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis type="number" tick={{ fontSize: 11 }} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  tick={{ fontSize: 11 }}
+                  width={140}
+                  tickFormatter={(v: string) => (v.length > 22 ? v.slice(0, 22) + '…' : v)}
+                />
+                <Tooltip
+                  formatter={(value: number, name: string, props: any) => {
+                    const data = props.payload
+                    return [
+                      `${value} min`,
+                      `Downtime (${data.fault_count} faults)`
+                    ]
+                  }}
+                />
+                <Bar dataKey="total_downtime" name="Downtime" fill="#10b981" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex h-64 items-center justify-center text-gray-500">
+              No equipment downtime found for this plant in the selected date range.
+            </div>
+          )
+        ) : (
+          <div className="flex h-64 items-center justify-center text-gray-500">
+            Click a plant bar to drill into downtime by equipment.
+          </div>
+        )}
       </div>
 
       {/* Row 2 charts */}
