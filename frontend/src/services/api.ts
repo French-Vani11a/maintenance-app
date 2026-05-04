@@ -2,6 +2,7 @@ import axios from 'axios'
 import type {
   DashboardStats,
   Equipment,
+  EquipmentGroup,
   FaultCategory,
   MaintenanceRecord,
   Plant,
@@ -79,11 +80,14 @@ export async function deletePlant(id: number): Promise<void> {
 // ── Equipment ───────────────────────────────────────────────────────────────
 
 export async function getEquipment(params?: {
+  skip?: number
+  limit?: number
   plant_id?: number
+  equipment_group_id?: number
   status?: string
   search?: string
-}): Promise<Equipment[]> {
-  const res = await api.get<Equipment[]>('/equipment/', { params })
+}): Promise<{ total: number; equipment: Equipment[] }> {
+  const res = await api.get<{ total: number; equipment: Equipment[] }>('/equipment/', { params })
   return res.data
 }
 
@@ -99,6 +103,27 @@ export async function updateEquipment(id: number, data: Partial<Equipment>): Pro
 
 export async function deleteEquipment(id: number): Promise<void> {
   await api.delete(`/equipment/${id}`)
+}
+
+export async function getEquipmentGroups(plant_id?: number): Promise<EquipmentGroup[]> {
+  const res = await api.get<EquipmentGroup[]>('/equipment/groups/', {
+    params: plant_id ? { plant_id } : {},
+  })
+  return res.data
+}
+
+export async function createEquipmentGroup(data: Partial<EquipmentGroup>): Promise<EquipmentGroup> {
+  const res = await api.post<EquipmentGroup>('/equipment/groups/', data)
+  return res.data
+}
+
+export async function updateEquipmentGroup(id: number, data: Partial<EquipmentGroup>): Promise<EquipmentGroup> {
+  const res = await api.put<EquipmentGroup>(`/equipment/groups/${id}`, data)
+  return res.data
+}
+
+export async function deleteEquipmentGroup(id: number): Promise<void> {
+  await api.delete(`/equipment/groups/${id}`)
 }
 
 // ── Users ───────────────────────────────────────────────────────────────────
@@ -243,6 +268,37 @@ export async function commitImport(
   const form = new FormData()
   form.append('file', file)
   const res = await api.post('/import/commit', form, {
+    params: sheetName ? { sheet_name: sheetName } : {},
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return res.data
+}
+
+export async function previewEquipmentImport(
+  file: File,
+  sheetName?: string
+): Promise<{
+  sheets: string[]
+  selected_sheet: string
+  total_records: number
+  preview: Record<string, unknown>[]
+}> {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await api.post('/import/equipment/preview', form, {
+    params: sheetName ? { sheet_name: sheetName } : {},
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return res.data
+}
+
+export async function commitEquipmentImport(
+  file: File,
+  sheetName?: string
+): Promise<{ saved: number; created: number; updated: number; errors: { row: number; error: string }[]; message: string }> {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await api.post('/import/equipment/commit', form, {
     params: sheetName ? { sheet_name: sheetName } : {},
     headers: { 'Content-Type': 'multipart/form-data' },
   })

@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import { Plus, Pencil, Trash2, Search, ChevronLeft, ChevronRight } from 'lucide-react'
-import { deleteRecord, getEquipment, getPlants, getRecords } from '../services/api'
-import type { Equipment, MaintenanceRecord, Plant, RecordFilters } from '../types'
+import { deleteRecord, getEquipment, getEquipmentGroups, getPlants, getRecords } from '../services/api'
+import type { Equipment, EquipmentGroup, MaintenanceRecord, Plant, RecordFilters } from '../types'
 import LoadingSpinner from '../components/LoadingSpinner'
 
 const PAGE_SIZE = 50
@@ -31,6 +31,7 @@ export default function MaintenanceRecords() {
 
   const [plants, setPlants] = useState<Plant[]>([])
   const [equipment, setEquipment] = useState<Equipment[]>([])
+  const [groups, setGroups] = useState<EquipmentGroup[]>([])
 
   const [filters, setFilters] = useState<RecordFilters>({})
   const [search, setSearch] = useState('')
@@ -38,7 +39,8 @@ export default function MaintenanceRecords() {
   // Load reference data once
   useEffect(() => {
     getPlants().then(setPlants)
-    getEquipment().then(setEquipment)
+    getEquipment().then(result => setEquipment(result.equipment))
+    getEquipmentGroups().then(setGroups)
   }, [])
 
   useEffect(() => {
@@ -107,6 +109,18 @@ export default function MaintenanceRecords() {
           <option value="">All Plants</option>
           {plants.map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+
+        {/* Equipment Group filter */}
+        <select
+          className="input w-44"
+          value={filters.equipment_group_id || ''}
+          onChange={(e) => handleFilterChange('equipment_group_id', e.target.value)}
+        >
+          <option value="">All Groups</option>
+          {groups.map((g) => (
+            <option key={g.id} value={g.id}>{g.name}</option>
           ))}
         </select>
 

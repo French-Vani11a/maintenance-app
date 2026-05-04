@@ -9,7 +9,16 @@ export interface Equipment {
   equipment_code: string | null
   plant_id: number | null
   plant_name: string | null
+  equipment_group_id: number | null
+  equipment_group_name: string | null
   status: string
+}
+
+export interface EquipmentGroup {
+  id: number
+  name: string
+  plant_id: number | null
+  plant_name: string | null
 }
 
 export interface User {
@@ -73,6 +82,7 @@ export interface DashboardStats {
   avg_repair_time_minutes: number
   top_equipment: Array<{ name: string; fault_count: number; total_downtime: number }>
   downtime_by_plant: Array<{ id: number; name: string; total_downtime: number; fault_count: number }>
+  equipment_group_faults: Array<{ name: string; fault_count: number; total_downtime: number }>
   faults_by_day: Array<{ date: string; count: number; downtime: number }>
   top_artisans: Array<{ name: string; job_count: number; total_downtime: number }>
 }
@@ -82,6 +92,7 @@ export interface RecordFilters {
   date_to?: string
   plant_id?: number
   equipment_id?: number
+  equipment_group_id?: number
   created_by?: string
   artisan_name?: string
   reporter_name?: string

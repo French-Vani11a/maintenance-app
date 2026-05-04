@@ -385,6 +385,25 @@ export default function Dashboard() {
         </div>
       </div>
 
+      <div className="card">
+        <h2 className="mb-4 text-sm font-semibold text-gray-700">Equipment Group Faults</h2>
+        <ResponsiveContainer width="100%" height={280}>
+          <BarChart data={stats.equipment_group_faults} layout="vertical">
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+            <YAxis
+              type="category"
+              dataKey="name"
+              tick={{ fontSize: 10 }}
+              width={200}
+              tickFormatter={(v: string) => (v.length > 24 ? v.slice(0, 24) + '…' : v)}
+            />
+            <Tooltip />
+            <Bar dataKey="fault_count" name="Faults" fill="#f59e0b" radius={[0, 4, 4, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
     </div>
   )
 }

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
-import { Download, FileText } from 'lucide-react'
-import { exportRecordsCsv, getPlants, getRecords } from '../services/api'
-import type { MaintenanceRecord, Plant, RecordFilters } from '../types'
+import { Download, FileText, ChevronLeft, ChevronRight } from 'lucide-react'
+import { exportRecordsCsv, getEquipmentGroups, getPlants, getRecords } from '../services/api'
+import type { EquipmentGroup, MaintenanceRecord, Plant, RecordFilters } from '../types'
 import LoadingSpinner from '../components/LoadingSpinner'
 
 function fmtMins(mins: number | null) {
@@ -20,10 +20,14 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function Reports() {
   const [plants, setPlants] = useState<Plant[]>([])
+  const [groups, setGroups] = useState<EquipmentGroup[]>([])
   const [records, setRecords] = useState<MaintenanceRecord[]>([])
   const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  const PAGE_SIZE = 50
 
   const now = new Date()
   const [filters, setFilters] = useState<RecordFilters>({
@@ -33,17 +37,18 @@ export default function Reports() {
 
   useEffect(() => {
     getPlants().then(setPlants)
+    getEquipmentGroups().then(setGroups)
   }, [])
 
   useEffect(() => {
     setLoading(true)
-    getRecords({ ...filters, limit: 1000 })
+    getRecords({ ...filters, limit: PAGE_SIZE, skip: page * PAGE_SIZE })
       .then(({ records, total }) => {
         setRecords(records)
         setTotal(total)
       })
       .finally(() => setLoading(false))
-  }, [filters])
+  }, [filters, page])
 
   function handleFilter(key: keyof RecordFilters, value: string) {
     setFilters((f) => ({ ...f, [key]: value || undefined }))
@@ -106,6 +111,13 @@ export default function Reports() {
             <select className="input w-44" value={filters.plant_id || ''} onChange={(e) => handleFilter('plant_id', e.target.value)}>
               <option value="">All Plants</option>
               {plants.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Equipment Group</label>
+            <select className="input w-44" value={filters.equipment_group_id || ''} onChange={(e) => handleFilter('equipment_group_id', e.target.value)}>
+              <option value="">All Groups</option>
+              {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
             </select>
           </div>
           <div>
@@ -223,10 +235,34 @@ export default function Reports() {
         )}
       </div>
 
-      {total > 1000 && (
-        <p className="text-sm text-yellow-600 bg-yellow-50 px-4 py-2 rounded-lg border border-yellow-200">
-          Showing first 1000 records. Use Export CSV to download all {total} records.
-        </p>
+      {/* Pagination */}
+      {total > PAGE_SIZE && (
+        <div className="flex items-center justify-between mt-4">
+          <div className="text-sm text-gray-500">
+            Showing {page * PAGE_SIZE + 1}-{Math.min((page + 1) * PAGE_SIZE, total)} of {total} records
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              className="btn-secondary"
+              onClick={() => setPage(p => Math.max(0, p - 1))}
+              disabled={page === 0}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </button>
+            <span className="text-sm text-gray-600">
+              Page {page + 1} of {Math.ceil(total / PAGE_SIZE)}
+            </span>
+            <button
+              className="btn-secondary"
+              onClick={() => setPage(p => Math.min(Math.ceil(total / PAGE_SIZE) - 1, p + 1))}
+              disabled={page >= Math.ceil(total / PAGE_SIZE) - 1}
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )

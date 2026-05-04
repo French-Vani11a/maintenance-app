@@ -82,9 +82,9 @@ export default function RecordForm() {
 
   useEffect(() => {
     getPlants().then(setPlants)
-    getEquipment().then((eq) => {
-      setAllEquipment(eq)
-      setFilteredEquipment(eq)
+    getEquipment().then((result) => {
+      setAllEquipment(result.equipment)
+      setFilteredEquipment(result.equipment)
     })
   }, [])
 

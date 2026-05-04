@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.equipment import Equipment
+from app.models.equipment_group import EquipmentGroup
 from app.models.maintenance_record import MaintenanceRecord
 from app.models.plant import Plant
 from app.models.user import User
@@ -105,6 +106,22 @@ def get_dashboard_stats(
         .all()
     )
 
+    # Top equipment groups by faults
+    equipment_group_faults = (
+        db.query(
+            EquipmentGroup.name,
+            func.count(MaintenanceRecord.id).label("fault_count"),
+            func.sum(MaintenanceRecord.downtime_minutes).label("total_downtime"),
+        )
+        .join(Equipment, EquipmentGroup.id == Equipment.equipment_group_id)
+        .join(MaintenanceRecord, Equipment.id == MaintenanceRecord.equipment_id)
+        .filter(*period_filters)
+        .group_by(EquipmentGroup.name)
+        .order_by(func.count(MaintenanceRecord.id).desc())
+        .limit(10)
+        .all()
+    )
+
     # Downtime by plant
     downtime_by_plant = (
         db.query(
@@ -165,6 +182,14 @@ def get_dashboard_stats(
                 "total_downtime": e.total_downtime or 0,
             }
             for e in top_equipment
+        ],
+        "equipment_group_faults": [
+            {
+                "name": g.name,
+                "fault_count": g.fault_count,
+                "total_downtime": g.total_downtime or 0,
+            }
+            for g in equipment_group_faults
         ],
         "downtime_by_plant": [
             {

@@ -14,6 +14,13 @@ def create_tables():
 def ensure_schema_updates():
     inspector = inspect(engine)
     tables = inspector.get_table_names()
+
+    if "equipment" in tables:
+        equipment_columns = {c["name"] for c in inspector.get_columns("equipment")}
+        if "equipment_group_id" not in equipment_columns:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE equipment ADD COLUMN equipment_group_id INTEGER REFERENCES equipment_groups(id)"))
+
     if "maintenance_records" not in tables:
         return
 

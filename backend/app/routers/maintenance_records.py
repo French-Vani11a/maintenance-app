@@ -80,6 +80,7 @@ def _build_query(
     date_to: Optional[datetime],
     plant_id: Optional[int],
     equipment_id: Optional[int],
+    equipment_group_id: Optional[int],
     created_by: Optional[str],
     artisan_name: Optional[str],
     reporter_name: Optional[str],
@@ -96,6 +97,8 @@ def _build_query(
         query = query.filter(MaintenanceRecord.plant_id == plant_id)
     if equipment_id:
         query = query.filter(MaintenanceRecord.equipment_id == equipment_id)
+    if equipment_group_id:
+        query = query.filter(MaintenanceRecord.equipment.has(equipment_group_id=equipment_group_id))
     if created_by:
         query = query.filter(MaintenanceRecord.created_by_user.has(User.full_name.ilike(f"%{created_by}%")))
     if artisan_name:
@@ -127,6 +130,7 @@ def get_records(
     date_to: Optional[datetime] = Query(None),
     plant_id: Optional[int] = Query(None),
     equipment_id: Optional[int] = Query(None),
+    equipment_group_id: Optional[int] = Query(None),
     created_by: Optional[str] = Query(None),
     artisan_name: Optional[str] = Query(None),
     reporter_name: Optional[str] = Query(None),
@@ -137,7 +141,7 @@ def get_records(
     current_user: User = Depends(get_current_user),
 ):
     query = _build_query(
-        db, date_from, date_to, plant_id, equipment_id, created_by,
+        db, date_from, date_to, plant_id, equipment_id, equipment_group_id, created_by,
         artisan_name, reporter_name, mr_no, status, search,
     )
     total = query.count()
@@ -156,6 +160,7 @@ def export_csv(
     date_to: Optional[datetime] = Query(None),
     plant_id: Optional[int] = Query(None),
     equipment_id: Optional[int] = Query(None),
+    equipment_group_id: Optional[int] = Query(None),
     created_by: Optional[str] = Query(None),
     artisan_name: Optional[str] = Query(None),
     mr_no: Optional[str] = Query(None),
@@ -165,7 +170,7 @@ def export_csv(
     current_user: User = Depends(get_current_user),
 ):
     query = _build_query(
-        db, date_from, date_to, plant_id, equipment_id, created_by,
+        db, date_from, date_to, plant_id, equipment_id, equipment_group_id, created_by,
         artisan_name, None, mr_no, status, search,
     )
     records = query.order_by(MaintenanceRecord.record_date.desc()).all()

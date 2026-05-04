@@ -1,30 +1,48 @@
 import { useEffect, useState } from 'react'
-import { Plus, Pencil, Trash2, Check, X, Building2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Check, X, Building2, ChevronLeft, ChevronRight } from 'lucide-react'
 import {
   createEquipment,
+  createEquipmentGroup,
   createPlant,
   deleteEquipment,
+  deleteEquipmentGroup,
   deletePlant,
   getEquipment,
+  getEquipmentGroups,
   getPlants,
   updateEquipment,
+  updateEquipmentGroup,
   updatePlant,
 } from '../services/api'
-import type { Equipment, Plant } from '../types'
+import type { Equipment, EquipmentGroup, Plant } from '../types'
 import LoadingSpinner from '../components/LoadingSpinner'
 
 export default function EquipmentManagement() {
   const [plants, setPlants] = useState<Plant[]>([])
+  const [groups, setGroups] = useState<EquipmentGroup[]>([])
   const [equipment, setEquipment] = useState<Equipment[]>([])
+  const [totalEquipment, setTotalEquipment] = useState(0)
+  const [equipmentPage, setEquipmentPage] = useState(0)
   const [loading, setLoading] = useState(true)
   const [selectedPlant, setSelectedPlant] = useState<number | null>(null)
+  const [selectedGroup, setSelectedGroup] = useState<number | null>(null)
   const [error, setError] = useState('')
+
+  const EQUIPMENT_PAGE_SIZE = 50
 
   // Plant edit state
   const [editingPlant, setEditingPlant] = useState<number | null>(null)
   const [plantName, setPlantName] = useState('')
   const [newPlantName, setNewPlantName] = useState('')
   const [addingPlant, setAddingPlant] = useState(false)
+
+  // Equipment group edit state
+  const [editingGroup, setEditingGroup] = useState<number | null>(null)
+  const [groupName, setGroupName] = useState('')
+  const [groupPlantId, setGroupPlantId] = useState<number | null>(null)
+  const [newGroupName, setNewGroupName] = useState('')
+  const [newGroupPlantId, setNewGroupPlantId] = useState<number | null>(null)
+  const [addingGroup, setAddingGroup] = useState(false)
 
   // Equipment edit state
   const [editingEquip, setEditingEquip] = useState<number | null>(null)
@@ -33,27 +51,46 @@ export default function EquipmentManagement() {
     code: '',
     status: 'active',
     plant_id: null as number | null,
+    equipment_group_id: null as number | null,
   })
   const [newEquipForm, setNewEquipForm] = useState({
     name: '',
     code: '',
     status: 'active',
     plant_id: null as number | null,
+    equipment_group_id: null as number | null,
   })
   const [addingEquip, setAddingEquip] = useState(false)
 
   useEffect(() => {
-    Promise.all([getPlants(), getEquipment()])
-      .then(([p, e]) => {
+    Promise.all([getPlants(), getEquipmentGroups()])
+      .then(([p, g]) => {
         setPlants(p)
-        setEquipment(e)
+        setGroups(g)
       })
       .finally(() => setLoading(false))
   }, [])
 
-  const visibleEquipment = selectedPlant
-    ? equipment.filter((e) => e.plant_id === selectedPlant)
-    : equipment
+  useEffect(() => {
+    loadEquipment()
+  }, [selectedPlant, selectedGroup, equipmentPage])
+
+  async function loadEquipment() {
+    try {
+      const result = await getEquipment({
+        plant_id: selectedPlant || undefined,
+        equipment_group_id: selectedGroup || undefined,
+        skip: equipmentPage * EQUIPMENT_PAGE_SIZE,
+        limit: EQUIPMENT_PAGE_SIZE,
+      })
+      setEquipment(result.equipment)
+      setTotalEquipment(result.total)
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || 'Failed to load equipment')
+    }
+  }
+
+  const visibleEquipment = equipment
 
   // ── Plants ────────────────────────────────────────────────────────────────
 
@@ -90,23 +127,65 @@ export default function EquipmentManagement() {
     }
   }
 
+  async function handleCreateGroup() {
+    if (!newGroupName.trim()) return
+    try {
+      const group = await createEquipmentGroup({
+        name: newGroupName.trim(),
+        plant_id: newGroupPlantId,
+      })
+      setGroups((prev) => [...prev, group])
+      setNewGroupName('')
+      setNewGroupPlantId(null)
+      setAddingGroup(false)
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || 'Failed to create group')
+    }
+  }
+
+  async function handleUpdateGroup(id: number) {
+    try {
+      const group = await updateEquipmentGroup(id, {
+        name: groupName,
+        plant_id: groupPlantId,
+      })
+      setGroups((prev) => prev.map((x) => (x.id === id ? group : x)))
+      setEditingGroup(null)
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || 'Failed to update group')
+    }
+  }
+
+  async function handleDeleteGroup(id: number) {
+    if (!confirm('Delete this equipment group? Equipment assigned to it will be ungrouped.')) return
+    try {
+      await deleteEquipmentGroup(id)
+      setGroups((prev) => prev.filter((g) => g.id !== id))
+      if (selectedGroup === id) setSelectedGroup(null)
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || 'Failed to delete group')
+    }
+  }
+
   // ── Equipment ─────────────────────────────────────────────────────────────
 
   async function handleCreateEquip() {
     if (!newEquipForm.name.trim()) return
     try {
-      const eq = await createEquipment({
+      await createEquipment({
         equipment_name: newEquipForm.name.trim(),
         equipment_code: newEquipForm.code || null,
         plant_id: newEquipForm.plant_id,
+        equipment_group_id: newEquipForm.equipment_group_id,
         status: newEquipForm.status,
       })
-      setEquipment((prev) => [...prev, eq])
+      loadEquipment()
       setNewEquipForm({
         name: '',
         code: '',
         status: 'active',
         plant_id: selectedPlant,
+        equipment_group_id: selectedGroup,
       })
       setAddingEquip(false)
     } catch (e: any) {
@@ -116,13 +195,14 @@ export default function EquipmentManagement() {
 
   async function handleUpdateEquip(id: number) {
     try {
-      const eq = await updateEquipment(id, {
+      await updateEquipment(id, {
         equipment_name: equipForm.name,
         equipment_code: equipForm.code || null,
         plant_id: equipForm.plant_id,
+        equipment_group_id: equipForm.equipment_group_id,
         status: equipForm.status,
       })
-      setEquipment((prev) => prev.map((x) => (x.id === id ? eq : x)))
+      loadEquipment()
       setEditingEquip(null)
     } catch (e: any) {
       setError(e?.response?.data?.detail || 'Failed to update equipment')
@@ -133,7 +213,7 @@ export default function EquipmentManagement() {
     if (!confirm('Delete this equipment?')) return
     try {
       await deleteEquipment(id)
-      setEquipment((prev) => prev.filter((e) => e.id !== id))
+      loadEquipment()
     } catch (e: any) {
       setError(e?.response?.data?.detail || 'Failed to delete equipment')
     }
@@ -194,7 +274,10 @@ export default function EquipmentManagement() {
               className={`group flex items-center gap-2 rounded-lg px-3 py-2 cursor-pointer transition-colors ${
                 selectedPlant === p.id ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50'
               }`}
-              onClick={() => setSelectedPlant(selectedPlant === p.id ? null : p.id)}
+              onClick={() => {
+                setSelectedPlant(selectedPlant === p.id ? null : p.id)
+                setSelectedGroup(null)
+              }}
             >
               {editingPlant === p.id ? (
                 <>
@@ -236,6 +319,120 @@ export default function EquipmentManagement() {
         </ul>
       </div>
 
+      {/* Equipment groups panel */}
+      <div className="card space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-gray-700 flex items-center gap-2">
+            <Building2 className="h-4 w-4" />
+            Equipment Groups ({groups.length})
+          </h2>
+          <button
+            className="btn-secondary btn-sm"
+            onClick={() => {
+              setNewGroupName('')
+              setNewGroupPlantId(selectedPlant)
+              setAddingGroup(true)
+            }}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        {addingGroup && (
+          <div className="flex flex-col gap-2">
+            <input
+              autoFocus
+              type="text"
+              className="input text-sm"
+              placeholder="Group name"
+              value={newGroupName}
+              onChange={(e) => setNewGroupName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleCreateGroup()}
+            />
+            <select
+              className="input text-sm"
+              value={newGroupPlantId ?? ''}
+              onChange={(e) => setNewGroupPlantId(e.target.value ? Number(e.target.value) : null)}
+            >
+              <option value="">Unassigned plant</option>
+              {plants.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            <div className="flex gap-2">
+              <button onClick={handleCreateGroup} className="btn-primary btn-sm">
+                <Check className="h-3.5 w-3.5" />
+              </button>
+              <button onClick={() => setAddingGroup(false)} className="btn-secondary btn-sm">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        <ul className="space-y-1">
+          {groups.map((g) => (
+            <li
+              key={g.id}
+              className={`group flex items-center gap-2 rounded-lg px-3 py-2 cursor-pointer transition-colors ${
+                selectedGroup === g.id ? 'bg-green-50 text-green-700' : 'hover:bg-gray-50'
+              }`}
+              onClick={() => setSelectedGroup(selectedGroup === g.id ? null : g.id)}
+            >
+              {editingGroup === g.id ? (
+                <>
+                  <input
+                    autoFocus
+                    type="text"
+                    className="input text-sm flex-1 py-1"
+                    value={groupName}
+                    onChange={(e) => setGroupName(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.key === 'Enter' && handleUpdateGroup(g.id)}
+                  />
+                  <select
+                    className="input text-sm w-40"
+                    value={groupPlantId ?? ''}
+                    onChange={(e) => setGroupPlantId(e.target.value ? Number(e.target.value) : null)}
+                  >
+                    <option value="">Unassigned plant</option>
+                    {plants.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button onClick={(e) => { e.stopPropagation(); handleUpdateGroup(g.id) }} className="text-green-600"><Check className="h-3.5 w-3.5" /></button>
+                  <button onClick={(e) => { e.stopPropagation(); setEditingGroup(null) }} className="text-gray-400"><X className="h-3.5 w-3.5" /></button>
+                </>
+              ) : (
+                <>
+                  <span className="flex-1 text-sm">{g.name}</span>
+                  <span className="text-xs text-gray-400">
+                    {g.plant_name || 'Unassigned'}
+                  </span>
+                  <div className="hidden group-hover:flex items-center gap-1">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setEditingGroup(g.id); setGroupName(g.name); setGroupPlantId(g.plant_id) }}
+                      className="text-gray-400 hover:text-blue-600"
+                    ><Pencil className="h-3 w-3" /></button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDeleteGroup(g.id) }}
+                      className="text-gray-400 hover:text-red-600"
+                    ><Trash2 className="h-3 w-3" /></button>
+                  </div>
+                </>
+              )}
+            </li>
+          ))}
+          {groups.length === 0 && (
+            <p className="text-xs text-gray-400 text-center py-4">No equipment groups yet</p>
+          )}
+        </ul>
+      </div>
+
       {/* Equipment table */}
       <div className="lg:col-span-2 space-y-4">
         <div className="flex items-center justify-between">
@@ -250,9 +447,12 @@ export default function EquipmentManagement() {
           </h2>
           <div className="flex items-center gap-2">
             <select
-              className="input text-sm py-1.5 w-48"
+              className="input text-sm py-1.5 w-44"
               value={selectedPlant ?? ''}
-              onChange={(e) => setSelectedPlant(e.target.value ? Number(e.target.value) : null)}
+              onChange={(e) => {
+                setSelectedPlant(e.target.value ? Number(e.target.value) : null)
+                setSelectedGroup(null)
+              }}
             >
               <option value="">All plants</option>
               {plants.map((p) => (
@@ -261,10 +461,22 @@ export default function EquipmentManagement() {
                 </option>
               ))}
             </select>
+            <select
+              className="input text-sm py-1.5 w-44"
+              value={selectedGroup ?? ''}
+              onChange={(e) => setSelectedGroup(e.target.value ? Number(e.target.value) : null)}
+            >
+              <option value="">All groups</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
             <button
               className="btn-primary btn-sm"
               onClick={() => {
-                setNewEquipForm((f) => ({ ...f, plant_id: selectedPlant }))
+                setNewEquipForm((f) => ({ ...f, plant_id: selectedPlant, equipment_group_id: selectedGroup }))
                 setAddingEquip(true)
               }}
             >
@@ -304,6 +516,28 @@ export default function EquipmentManagement() {
                 ))}
               </select>
             </div>
+            <div className="w-44">
+              <label className="label">Group</label>
+              <select
+                className="input"
+                value={newEquipForm.equipment_group_id ?? ''}
+                onChange={(e) =>
+                  setNewEquipForm((f) => ({
+                    ...f,
+                    equipment_group_id: e.target.value ? Number(e.target.value) : null,
+                  }))
+                }
+              >
+                <option value="">No group</option>
+                {groups
+                  .filter((g) => !selectedPlant || g.plant_id === selectedPlant)
+                  .map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
             <div className="w-28">
               <label className="label">Status</label>
               <select className="input" value={newEquipForm.status} onChange={(e) => setNewEquipForm((f) => ({ ...f, status: e.target.value }))}>
@@ -323,6 +557,7 @@ export default function EquipmentManagement() {
                 <th>Equipment Name</th>
                 <th>Code</th>
                 <th>Plant</th>
+                <th>Group</th>
                 <th>Status</th>
                 <th></th>
               </tr>
@@ -354,6 +589,27 @@ export default function EquipmentManagement() {
                         </select>
                       </td>
                       <td>
+                        <select
+                          className="input text-sm py-1"
+                          value={equipForm.equipment_group_id ?? ''}
+                          onChange={(e) =>
+                            setEquipForm((f) => ({
+                              ...f,
+                              equipment_group_id: e.target.value ? Number(e.target.value) : null,
+                            }))
+                          }
+                        >
+                          <option value="">No group</option>
+                          {groups
+                            .filter((g) => !equipForm.plant_id || g.plant_id === equipForm.plant_id)
+                            .map((g) => (
+                              <option key={g.id} value={g.id}>
+                                {g.name}
+                              </option>
+                            ))}
+                        </select>
+                      </td>
+                      <td>
                         <select className="input text-sm py-1 w-24" value={equipForm.status} onChange={(e) => setEquipForm((f) => ({ ...f, status: e.target.value }))}>
                           <option value="active">Active</option>
                           <option value="inactive">Inactive</option>
@@ -371,6 +627,7 @@ export default function EquipmentManagement() {
                       <td className="font-medium">{eq.equipment_name}</td>
                       <td className="font-mono text-xs text-gray-500">{eq.equipment_code || '—'}</td>
                       <td className="text-gray-500">{eq.plant_name || '—'}</td>
+                      <td className="text-gray-500">{eq.equipment_group_name || '—'}</td>
                       <td>
                         <span className={`badge ${eq.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
                           {eq.status}
@@ -386,6 +643,7 @@ export default function EquipmentManagement() {
                                 code: eq.equipment_code || '',
                                 status: eq.status,
                                 plant_id: eq.plant_id,
+                                equipment_group_id: eq.equipment_group_id,
                               })
                             }}
                             className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
@@ -402,7 +660,7 @@ export default function EquipmentManagement() {
               ))}
               {visibleEquipment.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="text-center text-gray-400 py-8">
+                  <td colSpan={6} className="text-center text-gray-400 py-8">
                     No equipment found
                   </td>
                 </tr>
@@ -410,6 +668,36 @@ export default function EquipmentManagement() {
             </tbody>
           </table>
         </div>
+
+        {/* Equipment Pagination */}
+        {totalEquipment > EQUIPMENT_PAGE_SIZE && (
+          <div className="flex items-center justify-between mt-4">
+            <div className="text-sm text-gray-500">
+              Showing {equipmentPage * EQUIPMENT_PAGE_SIZE + 1}-{Math.min((equipmentPage + 1) * EQUIPMENT_PAGE_SIZE, totalEquipment)} of {totalEquipment} equipment
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                className="btn-secondary btn-sm"
+                onClick={() => setEquipmentPage(p => Math.max(0, p - 1))}
+                disabled={equipmentPage === 0}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </button>
+              <span className="text-sm text-gray-600">
+                Page {equipmentPage + 1} of {Math.ceil(totalEquipment / EQUIPMENT_PAGE_SIZE)}
+              </span>
+              <button
+                className="btn-secondary btn-sm"
+                onClick={() => setEquipmentPage(p => Math.min(Math.ceil(totalEquipment / EQUIPMENT_PAGE_SIZE) - 1, p + 1))}
+                disabled={equipmentPage >= Math.ceil(totalEquipment / EQUIPMENT_PAGE_SIZE) - 1}
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
