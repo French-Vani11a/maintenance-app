@@ -17,6 +17,7 @@ from app.schemas.maintenance_record import (
     MaintenanceRecordUpdate,
 )
 from app.security import get_current_user
+from app.services.audit_service import log_action
 
 router = APIRouter()
 
@@ -247,6 +248,7 @@ def create_record(
     db.add(db_record)
     db.commit()
     db.refresh(db_record)
+    log_action(db, current_user.id, "create", "maintenance_record", db_record.id, f"Created record {db_record.mr_no}")
     return _enrich(db_record)
 
 
@@ -296,6 +298,7 @@ def update_record(
         setattr(record, field, value)
     db.commit()
     db.refresh(record)
+    log_action(db, current_user.id, "update", "maintenance_record", record.id, f"Updated record {record.mr_no}")
     return _enrich(record)
 
 
@@ -310,4 +313,5 @@ def delete_record(
         raise HTTPException(status_code=404, detail="Record not found")
     db.delete(record)
     db.commit()
+    log_action(db, current_user.id, "delete", "maintenance_record", record.id, f"Deleted record {record.mr_no}")
     return {"message": "Record deleted"}

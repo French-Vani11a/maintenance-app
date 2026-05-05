@@ -13,6 +13,7 @@ from app.models.plant import Plant
 from app.models.user import User
 from app.security import get_current_user
 from app.services.excel_importer import get_sheet_names, parse_excel_maintenance_records
+from app.services.audit_service import log_action
 
 router = APIRouter()
 
@@ -175,6 +176,7 @@ async def commit_import(
             errors.append({"row": i + 1, "error": str(exc)})
 
     db.commit()
+    log_action(db, current_user.id, "import", "maintenance_record", None, f"Imported {saved} records ({created} created, {updated} updated)")
     return {
         "saved": saved,
         "created": created,

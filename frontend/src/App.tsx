@@ -11,6 +11,7 @@ import ImportPage from './pages/ImportPage'
 import Reports from './pages/Reports'
 import UsersManagement from './pages/UsersManagement'
 import ChangePassword from './pages/ChangePassword'
+import AdminLogs from './pages/AdminLogs'
 
 export default function App() {
   return (
@@ -47,6 +48,14 @@ export default function App() {
               element={
                 <ProtectedRoute adminOnly>
                   <UsersManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="logs"
+              element={
+                <ProtectedRoute adminOnly>
+                  <AdminLogs />
                 </ProtectedRoute>
               }
             />

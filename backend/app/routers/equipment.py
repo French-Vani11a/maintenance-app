@@ -14,6 +14,7 @@ from app.schemas.equipment_group import (
     EquipmentGroupUpdate,
 )
 from app.security import get_current_user
+from app.services.audit_service import log_action
 
 router = APIRouter()
 
@@ -71,6 +72,7 @@ def create_equipment(
     db.add(db_eq)
     db.commit()
     db.refresh(db_eq)
+    log_action(db, current_user.id, "create", "equipment", db_eq.id, f"Created equipment {db_eq.equipment_name}")
     return _enrich(db_eq)
 
 
@@ -88,6 +90,7 @@ def update_equipment(
         setattr(db_eq, field, value)
     db.commit()
     db.refresh(db_eq)
+    log_action(db, current_user.id, "update", "equipment", db_eq.id, f"Updated equipment {db_eq.equipment_name}")
     return _enrich(db_eq)
 
 
@@ -102,6 +105,7 @@ def delete_equipment(
         raise HTTPException(status_code=404, detail="Equipment not found")
     db.delete(db_eq)
     db.commit()
+    log_action(db, current_user.id, "delete", "equipment", db_eq.id, f"Deleted equipment {db_eq.equipment_name}")
     return {"message": "Equipment deleted"}
 
 
@@ -136,6 +140,7 @@ def create_equipment_group(
     db.add(db_group)
     db.commit()
     db.refresh(db_group)
+    log_action(db, current_user.id, "create", "equipment_group", db_group.id, f"Created equipment group {db_group.name}")
     return {
         "id": db_group.id,
         "name": db_group.name,
@@ -158,6 +163,7 @@ def update_equipment_group(
         setattr(db_group, field, value)
     db.commit()
     db.refresh(db_group)
+    log_action(db, current_user.id, "update", "equipment_group", db_group.id, f"Updated equipment group {db_group.name}")
     return {
         "id": db_group.id,
         "name": db_group.name,
@@ -177,4 +183,5 @@ def delete_equipment_group(
         raise HTTPException(status_code=404, detail="Equipment group not found")
     db.delete(db_group)
     db.commit()
+    log_action(db, current_user.id, "delete", "equipment_group", db_group.id, f"Deleted equipment group {db_group.name}")
     return {"message": "Equipment group deleted"}

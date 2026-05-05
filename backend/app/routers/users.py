@@ -7,6 +7,7 @@ from app.database import get_db
 from app.models.user import User
 from app.schemas.user import ChangePasswordRequest, User as UserSchema, UserCreate, UserUpdate
 from app.security import get_current_user, get_password_hash, verify_password
+from app.services.audit_service import log_action
 
 router = APIRouter()
 
@@ -47,6 +48,7 @@ def create_user(
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+    log_action(db, current_user.id, "create", "user", db_user.id, f"Created user {db_user.full_name}")
     return db_user
 
 
@@ -84,6 +86,7 @@ def update_user(
         setattr(db_user, field, value)
     db.commit()
     db.refresh(db_user)
+    log_action(db, current_user.id, "update", "user", db_user.id, f"Updated user {db_user.full_name}")
     return db_user
 
 
@@ -101,6 +104,7 @@ def delete_user(
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
     db.delete(db_user)
     db.commit()
+    log_action(db, current_user.id, "delete", "user", db_user.id, f"Deleted user {db_user.full_name}")
     return {"message": "User deleted"}
 
 

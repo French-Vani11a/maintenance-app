@@ -4,6 +4,7 @@ import {
   ClipboardList,
   Download,
   FileText,
+  History,
   KeyRound,
   LogOut,
   Shield,
@@ -19,7 +20,10 @@ const nav = [
   { to: '/reports', icon: FileText, label: 'Reports' },
 ]
 
-const adminNav = [{ to: '/users', icon: Shield, label: 'Users' }]
+const adminNav = [
+  { to: '/users', icon: Shield, label: 'Users' },
+  { to: '/logs', icon: History, label: 'Audit Logs' },
+]
 const generalNav = [{ to: '/change-password', icon: KeyRound, label: 'Change Password' }]
 
 export default function Sidebar() {

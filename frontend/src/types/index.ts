@@ -102,3 +102,14 @@ export interface RecordFilters {
   status?: string
   search?: string
 }
+
+export interface AuditLog {
+  id: number
+  user_id: number
+  user_name: string
+  action: string
+  item_type: string
+  item_id: number | null
+  details: string | null
+  timestamp: string
+}

@@ -8,6 +8,7 @@ from app.models.plant import Plant
 from app.models.user import User
 from app.schemas.plant import Plant as PlantSchema, PlantCreate, PlantUpdate
 from app.security import get_current_user
+from app.services.audit_service import log_action
 
 router = APIRouter()
 
@@ -30,6 +31,7 @@ def create_plant(
     db.add(db_plant)
     db.commit()
     db.refresh(db_plant)
+    log_action(db, current_user.id, "create", "plant", db_plant.id, f"Created plant {db_plant.name}")
     return db_plant
 
 
@@ -47,6 +49,7 @@ def update_plant(
         db_plant.name = plant_update.name
     db.commit()
     db.refresh(db_plant)
+    log_action(db, current_user.id, "update", "plant", db_plant.id, f"Updated plant {db_plant.name}")
     return db_plant
 
 
@@ -61,4 +64,5 @@ def delete_plant(
         raise HTTPException(status_code=404, detail="Plant not found")
     db.delete(db_plant)
     db.commit()
+    log_action(db, current_user.id, "delete", "plant", db_plant.id, f"Deleted plant {db_plant.name}")
     return {"message": "Plant deleted"}

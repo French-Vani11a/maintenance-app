@@ -4,7 +4,7 @@ from sqlalchemy import inspect, text
 
 from app.config import settings
 from app.database import Base, engine, SessionLocal
-from app.routers import auth, plants, equipment, users, maintenance_records, import_excel, dashboard
+from app.routers import auth, plants, equipment, users, maintenance_records, import_excel, dashboard, logs
 
 
 def create_tables():
@@ -82,6 +82,7 @@ app.include_router(users.router, prefix="/api/users", tags=["Users"])
 app.include_router(maintenance_records.router, prefix="/api/records", tags=["Maintenance Records"])
 app.include_router(import_excel.router, prefix="/api/import", tags=["Import"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
+app.include_router(logs.router, prefix="/api/logs", tags=["Audit Logs"])
 
 
 @app.get("/", tags=["Health"])

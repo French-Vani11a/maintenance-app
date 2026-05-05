@@ -1,5 +1,6 @@
 import axios from 'axios'
 import type {
+  AuditLog,
   DashboardStats,
   Equipment,
   EquipmentGroup,
@@ -271,6 +272,21 @@ export async function commitImport(
     params: sheetName ? { sheet_name: sheetName } : {},
     headers: { 'Content-Type': 'multipart/form-data' },
   })
+  return res.data
+}
+
+// ── Audit Logs ───────────────────────────────────────────────────────────────
+
+export async function getAuditLogs(params?: {
+  skip?: number
+  limit?: number
+  date_from?: string
+  date_to?: string
+  user_id?: number
+  action?: string
+  item_type?: string
+}): Promise<AuditLog[]> {
+  const res = await api.get<AuditLog[]>('/logs/', { params })
   return res.data
 }
 
