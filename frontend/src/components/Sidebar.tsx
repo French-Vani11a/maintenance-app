@@ -5,7 +5,6 @@ import {
   Download,
   FileText,
   KeyRound,
-  Layers,
   LogOut,
   Shield,
   Wrench,
@@ -30,9 +29,7 @@ export default function Sidebar() {
     <aside className="flex h-screen w-60 flex-col bg-gray-900 text-gray-100 fixed left-0 top-0 z-20">
       {/* Logo */}
       <div className="flex items-center gap-3 px-5 py-5 border-b border-gray-800">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600">
-          <Layers className="h-5 w-5 text-white" />
-        </div>
+        <img src="/logo.png" alt="Logo" className="h-9 w-9 rounded-lg" />
         <div>
           <p className="text-sm font-bold leading-tight">Maintenance</p>
           <p className="text-xs text-gray-400 leading-tight">Management System</p>
