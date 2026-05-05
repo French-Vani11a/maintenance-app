@@ -121,16 +121,24 @@ export default function RecordForm() {
       .finally(() => setLoading(false))
   }, [id, isEdit])
 
-  // Filter equipment when plant changes
+  // Filter equipment and groups when plant or group changes
   useEffect(() => {
     if (form.plant_id) {
-      setFilteredEquipment(allEquipment.filter((e) => String(e.plant_id) === form.plant_id))
+      // Filter groups by plant
       setFilteredGroups(equipmentGroups.filter((g) => String(g.plant_id) === form.plant_id))
+
+      // Filter equipment by plant and optionally by group
+      let equipmentForPlant = allEquipment.filter((e) => String(e.plant_id) === form.plant_id)
+      if (form.equipment_group_id) {
+        equipmentForPlant = equipmentForPlant.filter((e) => String(e.equipment_group_id) === form.equipment_group_id)
+      }
+      setFilteredEquipment(equipmentForPlant)
     } else {
-      setFilteredEquipment(allEquipment)
-      setFilteredGroups(equipmentGroups)
+      // No plant selected - show no equipment or groups
+      setFilteredEquipment([])
+      setFilteredGroups([])
     }
-  }, [form.plant_id, allEquipment, equipmentGroups])
+  }, [form.plant_id, form.equipment_group_id, allEquipment, equipmentGroups])
 
   // Auto-calculate downtime when times change
   useEffect(() => {
@@ -238,7 +246,6 @@ export default function RecordForm() {
 
       <div className="card space-y-4">
         <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Plant & Equipment</h3>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FieldWrapper label="Plant">
             <select
               className="input"
@@ -249,6 +256,14 @@ export default function RecordForm() {
               {plants.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </FieldWrapper>
+          <FieldWrapper label="Equipment Group">
+            <select className="input" value={form.equipment_group_id} onChange={(e) => { set('equipment_group_id', e.target.value); set('equipment_id', '') }}>
+              <option value="">— Select equipment group —</option>
+              {filteredGroups.map((g) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+          </FieldWrapper>
           <FieldWrapper label="Equipment">
             <select className="input" value={form.equipment_id} onChange={(e) => set('equipment_id', e.target.value)}>
               <option value="">— Select equipment —</option>
@@ -257,15 +272,6 @@ export default function RecordForm() {
               ))}
             </select>
           </FieldWrapper>
-          <FieldWrapper label="Equipment Group">
-            <select className="input" value={form.equipment_group_id} onChange={(e) => set('equipment_group_id', e.target.value)}>
-              <option value="">— Select equipment group —</option>
-              {filteredGroups.map((g) => (
-                <option key={g.id} value={g.id}>{g.name}</option>
-              ))}
-            </select>
-          </FieldWrapper>
-        </div>
       </div>
 
       <div className="card space-y-4">
