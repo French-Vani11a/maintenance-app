@@ -9,6 +9,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.models.equipment import Equipment
 from app.models.maintenance_record import MaintenanceRecord
 from app.models.user import User
 from app.schemas.maintenance_record import (
@@ -70,6 +71,11 @@ def _enrich(record: MaintenanceRecord) -> dict:
         "updated_at": record.updated_at,
         "plant_name": record.plant.name if record.plant else None,
         "equipment_name": record.equipment.equipment_name if record.equipment else None,
+        "equipment_group_id": record.equipment_group_id or (record.equipment.equipment_group_id if record.equipment else None),
+        "equipment_group_name": (
+            record.equipment_group.name if record.equipment_group else
+            (record.equipment.equipment_group.name if record.equipment and record.equipment.equipment_group else None)
+        ),
         "fault_category_name": record.fault_category.name if record.fault_category else None,
     }
 
@@ -98,7 +104,12 @@ def _build_query(
     if equipment_id:
         query = query.filter(MaintenanceRecord.equipment_id == equipment_id)
     if equipment_group_id:
-        query = query.filter(MaintenanceRecord.equipment.has(equipment_group_id=equipment_group_id))
+        query = query.filter(
+            or_(
+                MaintenanceRecord.equipment_group_id == equipment_group_id,
+                MaintenanceRecord.equipment.has(equipment_group_id=equipment_group_id),
+            )
+        )
     if created_by:
         query = query.filter(MaintenanceRecord.created_by_user.has(User.full_name.ilike(f"%{created_by}%")))
     if artisan_name:
@@ -179,7 +190,7 @@ def export_csv(
     writer = csv.writer(output)
     writer.writerow([
         "ID", "Date", "Time Reported", "Reporter", "Reported To", "Artisan",
-        "MR No", "Plant", "Equipment", "Issue Description",
+        "MR No", "Plant", "Equipment", "Equipment Group", "Issue Description",
         "Arrival Time", "Finishing Time", "Downtime (mins)", "Status", "Remarks",
     ])
     for r in records:
@@ -193,6 +204,7 @@ def export_csv(
             r.mr_no or "",
             r.plant.name if r.plant else "",
             r.equipment.equipment_name if r.equipment else "",
+            r.equipment_group.name if r.equipment_group else (r.equipment.equipment_group.name if r.equipment and r.equipment.equipment_group else ""),
             r.issue_description or "",
             r.arrival_time or "",
             r.finishing_time or "",
@@ -218,6 +230,11 @@ def create_record(
 ):
     payload = record.model_dump()
     payload["created_by_user_id"] = current_user.id
+    if payload.get("equipment_group_id") is None and payload.get("equipment_id") is not None:
+        equipment = db.query(Equipment).filter(Equipment.id == payload["equipment_id"]).first()
+        if equipment and equipment.equipment_group_id is not None:
+            payload["equipment_group_id"] = equipment.equipment_group_id
+
     if payload.get("downtime_minutes") is None:
         computed_downtime = _compute_downtime_minutes(payload.get("arrival_time"), payload.get("finishing_time"))
         if computed_downtime is not None:
@@ -264,6 +281,16 @@ def update_record(
         computed_downtime = _compute_downtime_minutes(arrival_time, finishing_time)
         if computed_downtime is not None:
             update_data["downtime_minutes"] = computed_downtime
+
+    if "equipment_id" in update_data and update_data.get("equipment_group_id") is None:
+        equipment = db.query(Equipment).filter(Equipment.id == update_data["equipment_id"]).first()
+        if equipment and equipment.equipment_group_id is not None:
+            update_data["equipment_group_id"] = equipment.equipment_group_id
+
+    if "equipment_group_id" not in update_data and record.equipment_id is not None:
+        update_data["equipment_group_id"] = record.equipment_group_id or (
+            record.equipment.equipment_group_id if record.equipment else None
+        )
 
     for field, value in update_data.items():
         setattr(record, field, value)

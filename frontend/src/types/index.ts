@@ -46,6 +46,8 @@ export interface MaintenanceRecord {
   plant_name: string | null
   equipment_id: number | null
   equipment_name: string | null
+  equipment_group_id: number | null
+  equipment_group_name: string | null
   issue_description: string | null
   arrival_time: string | null
   finishing_time: string | null

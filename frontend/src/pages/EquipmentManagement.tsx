@@ -21,6 +21,7 @@ export default function EquipmentManagement() {
   const [plants, setPlants] = useState<Plant[]>([])
   const [groups, setGroups] = useState<EquipmentGroup[]>([])
   const [equipment, setEquipment] = useState<Equipment[]>([])
+  const [allEquipment, setAllEquipment] = useState<Equipment[]>([])
   const [totalEquipment, setTotalEquipment] = useState(0)
   const [equipmentPage, setEquipmentPage] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -77,14 +78,18 @@ export default function EquipmentManagement() {
 
   async function loadEquipment() {
     try {
-      const result = await getEquipment({
-        plant_id: selectedPlant || undefined,
-        equipment_group_id: selectedGroup || undefined,
-        skip: equipmentPage * EQUIPMENT_PAGE_SIZE,
-        limit: EQUIPMENT_PAGE_SIZE,
-      })
+      const [result, allResult] = await Promise.all([
+        getEquipment({
+          plant_id: selectedPlant || undefined,
+          equipment_group_id: selectedGroup || undefined,
+          skip: equipmentPage * EQUIPMENT_PAGE_SIZE,
+          limit: EQUIPMENT_PAGE_SIZE,
+        }),
+        getEquipment({ skip: 0, limit: 10000 }),
+      ])
       setEquipment(result.equipment)
       setTotalEquipment(result.total)
+      setAllEquipment(allResult.equipment)
     } catch (e: any) {
       setError(e?.response?.data?.detail || 'Failed to load equipment')
     }
@@ -297,7 +302,7 @@ export default function EquipmentManagement() {
                 <>
                   <span className="flex-1 text-sm">{p.name}</span>
                   <span className="text-xs text-gray-400">
-                    {equipment.filter((e) => e.plant_id === p.id).length}
+                    {allEquipment.filter((e) => e.plant_id === p.id).length}
                   </span>
                   <div className="hidden group-hover:flex items-center gap-1">
                     <button
@@ -324,7 +329,7 @@ export default function EquipmentManagement() {
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-gray-700 flex items-center gap-2">
             <Building2 className="h-4 w-4" />
-            Equipment Groups ({groups.length})
+            Equipment Groups ({selectedPlant ? groups.filter((g) => g.plant_id === selectedPlant).length : 0})
           </h2>
           <button
             className="btn-secondary btn-sm"
@@ -333,6 +338,7 @@ export default function EquipmentManagement() {
               setNewGroupPlantId(selectedPlant)
               setAddingGroup(true)
             }}
+            disabled={!selectedPlant}
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
@@ -373,62 +379,66 @@ export default function EquipmentManagement() {
         )}
 
         <ul className="space-y-1">
-          {groups.map((g) => (
-            <li
-              key={g.id}
-              className={`group flex items-center gap-2 rounded-lg px-3 py-2 cursor-pointer transition-colors ${
-                selectedGroup === g.id ? 'bg-green-50 text-green-700' : 'hover:bg-gray-50'
-              }`}
-              onClick={() => setSelectedGroup(selectedGroup === g.id ? null : g.id)}
-            >
-              {editingGroup === g.id ? (
-                <>
-                  <input
-                    autoFocus
-                    type="text"
-                    className="input text-sm flex-1 py-1"
-                    value={groupName}
-                    onChange={(e) => setGroupName(e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    onKeyDown={(e) => e.key === 'Enter' && handleUpdateGroup(g.id)}
-                  />
-                  <select
-                    className="input text-sm w-40"
-                    value={groupPlantId ?? ''}
-                    onChange={(e) => setGroupPlantId(e.target.value ? Number(e.target.value) : null)}
-                  >
-                    <option value="">Unassigned plant</option>
-                    {plants.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button onClick={(e) => { e.stopPropagation(); handleUpdateGroup(g.id) }} className="text-green-600"><Check className="h-3.5 w-3.5" /></button>
-                  <button onClick={(e) => { e.stopPropagation(); setEditingGroup(null) }} className="text-gray-400"><X className="h-3.5 w-3.5" /></button>
-                </>
-              ) : (
-                <>
-                  <span className="flex-1 text-sm">{g.name}</span>
-                  <span className="text-xs text-gray-400">
-                    {g.plant_name || 'Unassigned'}
-                  </span>
-                  <div className="hidden group-hover:flex items-center gap-1">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setEditingGroup(g.id); setGroupName(g.name); setGroupPlantId(g.plant_id) }}
-                      className="text-gray-400 hover:text-blue-600"
-                    ><Pencil className="h-3 w-3" /></button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDeleteGroup(g.id) }}
-                      className="text-gray-400 hover:text-red-600"
-                    ><Trash2 className="h-3 w-3" /></button>
-                  </div>
-                </>
-              )}
-            </li>
-          ))}
-          {groups.length === 0 && (
-            <p className="text-xs text-gray-400 text-center py-4">No equipment groups yet</p>
+          {selectedPlant ? groups
+            .filter((g) => g.plant_id === selectedPlant)
+            .map((g) => (
+              <li
+                key={g.id}
+                className={`group flex items-center gap-2 rounded-lg px-3 py-2 cursor-pointer transition-colors ${
+                  selectedGroup === g.id ? 'bg-green-50 text-green-700' : 'hover:bg-gray-50'
+                }`}
+                onClick={() => setSelectedGroup(selectedGroup === g.id ? null : g.id)}
+              >
+                {editingGroup === g.id ? (
+                  <>
+                    <input
+                      autoFocus
+                      type="text"
+                      className="input text-sm flex-1 py-1"
+                      value={groupName}
+                      onChange={(e) => setGroupName(e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.key === 'Enter' && handleUpdateGroup(g.id)}
+                    />
+                    <select
+                      className="input text-sm w-40"
+                      value={groupPlantId ?? ''}
+                      onChange={(e) => setGroupPlantId(e.target.value ? Number(e.target.value) : null)}
+                    >
+                      <option value="">Unassigned plant</option>
+                      {plants.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button onClick={(e) => { e.stopPropagation(); handleUpdateGroup(g.id) }} className="text-green-600"><Check className="h-3.5 w-3.5" /></button>
+                    <button onClick={(e) => { e.stopPropagation(); setEditingGroup(null) }} className="text-gray-400"><X className="h-3.5 w-3.5" /></button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1 text-sm">{g.name}</span>
+                    <span className="text-xs text-gray-400">
+                      {g.plant_name || 'Unassigned'}
+                    </span>
+                    <div className="hidden group-hover:flex items-center gap-1">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setEditingGroup(g.id); setGroupName(g.name); setGroupPlantId(g.plant_id) }}
+                        className="text-gray-400 hover:text-blue-600"
+                      ><Pencil className="h-3 w-3" /></button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteGroup(g.id) }}
+                        className="text-gray-400 hover:text-red-600"
+                      ><Trash2 className="h-3 w-3" /></button>
+                    </div>
+                  </>
+                )}
+              </li>
+            )) : (
+              <p className="text-xs text-gray-400 text-center py-4">Select a plant to view equipment groups</p>
+            )}
+          {selectedPlant && groups.filter((g) => g.plant_id === selectedPlant).length === 0 && (
+            <p className="text-xs text-gray-400 text-center py-4">No equipment groups for this plant</p>
           )}
         </ul>
       </div>
@@ -466,12 +476,16 @@ export default function EquipmentManagement() {
               value={selectedGroup ?? ''}
               onChange={(e) => setSelectedGroup(e.target.value ? Number(e.target.value) : null)}
             >
-              <option value="">All groups</option>
-              {groups.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name}
-                </option>
-              ))}
+              <option value="">
+                {selectedPlant ? 'All groups' : 'No plant selected'}
+              </option>
+              {selectedPlant ? groups
+                .filter((g) => g.plant_id === selectedPlant)
+                .map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                )) : null}
             </select>
             <button
               className="btn-primary btn-sm"

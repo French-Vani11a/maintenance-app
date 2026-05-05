@@ -25,11 +25,12 @@ def ensure_schema_updates():
         return
 
     columns = {c["name"] for c in inspector.get_columns("maintenance_records")}
-    if "created_by_user_id" in columns:
-        return
-
-    with engine.begin() as conn:
-        conn.execute(text("ALTER TABLE maintenance_records ADD COLUMN created_by_user_id INTEGER REFERENCES users(id)"))
+    if "created_by_user_id" not in columns:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE maintenance_records ADD COLUMN created_by_user_id INTEGER REFERENCES users(id)"))
+    if "equipment_group_id" not in columns:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE maintenance_records ADD COLUMN equipment_group_id INTEGER REFERENCES equipment_groups(id)"))
 
 
 def seed_default_admin():

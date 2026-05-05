@@ -17,6 +17,7 @@ class MaintenanceRecord(Base):
     mr_no = Column(String(100), nullable=True, index=True)
     plant_id = Column(Integer, ForeignKey("plants.id"), nullable=True, index=True)
     equipment_id = Column(Integer, ForeignKey("equipment.id"), nullable=True, index=True)
+    equipment_group_id = Column(Integer, ForeignKey("equipment_groups.id"), nullable=True, index=True)
     issue_description = Column(Text, nullable=True)
     arrival_time = Column(String(20), nullable=True)
     finishing_time = Column(String(20), nullable=True)
@@ -30,5 +31,6 @@ class MaintenanceRecord(Base):
 
     plant = relationship("Plant", back_populates="maintenance_records")
     equipment = relationship("Equipment", back_populates="maintenance_records")
+    equipment_group = relationship("EquipmentGroup")
     fault_category = relationship("FaultCategory", back_populates="maintenance_records")
     created_by_user = relationship("User", back_populates="created_records")

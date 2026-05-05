@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Save } from 'lucide-react'
-import { createRecord, getEquipment, getPlants, getRecord, updateRecord } from '../services/api'
-import type { Equipment, Plant } from '../types'
+import { createRecord, getEquipment, getEquipmentGroups, getPlants, getRecord, updateRecord } from '../services/api'
+import type { Equipment, EquipmentGroup, Plant } from '../types'
 import LoadingSpinner from '../components/LoadingSpinner'
 
 const STATUS_OPTIONS = ['open', 'in-progress', 'closed']
@@ -31,6 +31,7 @@ interface FormState {
   plant_id: string
   equipment_id: string
   issue_description: string
+  equipment_group_id: string
   arrival_time: string
   finishing_time: string
   downtime_minutes: string
@@ -47,6 +48,7 @@ const empty: FormState = {
   mr_no: '',
   plant_id: '',
   equipment_id: '',
+  equipment_group_id: '',
   issue_description: '',
   arrival_time: '',
   finishing_time: '',
@@ -75,7 +77,9 @@ export default function RecordForm() {
   const [form, setForm] = useState<FormState>(empty)
   const [plants, setPlants] = useState<Plant[]>([])
   const [allEquipment, setAllEquipment] = useState<Equipment[]>([])
+  const [equipmentGroups, setEquipmentGroups] = useState<EquipmentGroup[]>([])
   const [filteredEquipment, setFilteredEquipment] = useState<Equipment[]>([])
+  const [filteredGroups, setFilteredGroups] = useState<EquipmentGroup[]>([])
   const [loading, setLoading] = useState(isEdit)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -85,6 +89,10 @@ export default function RecordForm() {
     getEquipment().then((result) => {
       setAllEquipment(result.equipment)
       setFilteredEquipment(result.equipment)
+    })
+    getEquipmentGroups().then((result) => {
+      setEquipmentGroups(result)
+      setFilteredGroups(result)
     })
   }, [])
 
@@ -101,6 +109,7 @@ export default function RecordForm() {
           mr_no: r.mr_no || '',
           plant_id: r.plant_id ? String(r.plant_id) : '',
           equipment_id: r.equipment_id ? String(r.equipment_id) : '',
+          equipment_group_id: r.equipment_group_id ? String(r.equipment_group_id) : '',
           issue_description: r.issue_description || '',
           arrival_time: r.arrival_time || '',
           finishing_time: r.finishing_time || '',
@@ -116,10 +125,12 @@ export default function RecordForm() {
   useEffect(() => {
     if (form.plant_id) {
       setFilteredEquipment(allEquipment.filter((e) => String(e.plant_id) === form.plant_id))
+      setFilteredGroups(equipmentGroups.filter((g) => String(g.plant_id) === form.plant_id))
     } else {
       setFilteredEquipment(allEquipment)
+      setFilteredGroups(equipmentGroups)
     }
-  }, [form.plant_id, allEquipment])
+  }, [form.plant_id, allEquipment, equipmentGroups])
 
   // Auto-calculate downtime when times change
   useEffect(() => {
@@ -147,6 +158,7 @@ export default function RecordForm() {
         mr_no: form.mr_no || null,
         plant_id: form.plant_id ? Number(form.plant_id) : null,
         equipment_id: form.equipment_id ? Number(form.equipment_id) : null,
+        equipment_group_id: form.equipment_group_id ? Number(form.equipment_group_id) : null,
         issue_description: form.issue_description || null,
         arrival_time: form.arrival_time || null,
         finishing_time: form.finishing_time || null,
@@ -231,7 +243,7 @@ export default function RecordForm() {
             <select
               className="input"
               value={form.plant_id}
-              onChange={(e) => { set('plant_id', e.target.value); set('equipment_id', '') }}
+              onChange={(e) => { set('plant_id', e.target.value); set('equipment_id', ''); set('equipment_group_id', '') }}
             >
               <option value="">— Select plant —</option>
               {plants.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -242,6 +254,14 @@ export default function RecordForm() {
               <option value="">— Select equipment —</option>
               {filteredEquipment.map((e) => (
                 <option key={e.id} value={e.id}>{e.equipment_name}</option>
+              ))}
+            </select>
+          </FieldWrapper>
+          <FieldWrapper label="Equipment Group">
+            <select className="input" value={form.equipment_group_id} onChange={(e) => set('equipment_group_id', e.target.value)}>
+              <option value="">— Select equipment group —</option>
+              {filteredGroups.map((g) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
               ))}
             </select>
           </FieldWrapper>

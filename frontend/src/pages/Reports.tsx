@@ -51,7 +51,14 @@ export default function Reports() {
   }, [filters, page])
 
   function handleFilter(key: keyof RecordFilters, value: string) {
-    setFilters((f) => ({ ...f, [key]: value || undefined }))
+    setFilters((f) => {
+      const newFilters = { ...f, [key]: value || undefined }
+      // Clear equipment_group_id when plant changes
+      if (key === 'plant_id') {
+        newFilters.equipment_group_id = undefined
+      }
+      return newFilters
+    })
   }
 
   // Summary stats from loaded records
@@ -116,8 +123,14 @@ export default function Reports() {
           <div>
             <label className="label">Equipment Group</label>
             <select className="input w-44" value={filters.equipment_group_id || ''} onChange={(e) => handleFilter('equipment_group_id', e.target.value)}>
-              <option value="">All Groups</option>
-              {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+              <option value="">
+                {filters.plant_id ? 'All Groups' : 'No plant selected'}
+              </option>
+              {filters.plant_id ? groups
+                .filter((g) => g.plant_id === Number(filters.plant_id))
+                .map((g) => (
+                  <option key={g.id} value={g.id}>{g.name}</option>
+                )) : null}
             </select>
           </div>
           <div>

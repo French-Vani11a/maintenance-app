@@ -13,6 +13,7 @@ class MaintenanceRecordBase(BaseModel):
     mr_no: Optional[str] = None
     plant_id: Optional[int] = None
     equipment_id: Optional[int] = None
+    equipment_group_id: Optional[int] = None
     issue_description: Optional[str] = None
     arrival_time: Optional[str] = None
     finishing_time: Optional[str] = None

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.equipment import Equipment
+from app.models.equipment_group import EquipmentGroup
 from app.models.maintenance_record import MaintenanceRecord
 from app.models.plant import Plant
 from app.models.user import User
@@ -80,6 +81,7 @@ async def commit_import(
         try:
             plant_name = row.pop("plant", None)
             equipment_name = row.pop("equipment", None)
+            equipment_group_name = row.pop("equipment_group", None)
 
             plant_id = None
             if plant_name:
@@ -91,6 +93,7 @@ async def commit_import(
                 plant_id = plant.id
 
             equipment_id = None
+            equip = None
             if equipment_name:
                 equip = db.query(Equipment).filter(
                     Equipment.equipment_name.ilike(equipment_name)
@@ -103,6 +106,24 @@ async def commit_import(
                     db.add(equip)
                     db.flush()
                 equipment_id = equip.id
+
+            group_id = None
+            if equipment_group_name:
+                group_query = db.query(EquipmentGroup).filter(EquipmentGroup.name.ilike(equipment_group_name.strip()))
+                if plant_id is not None:
+                    group_query = group_query.filter(EquipmentGroup.plant_id == plant_id)
+                group = group_query.first()
+                if not group:
+                    group = EquipmentGroup(name=equipment_group_name.strip(), plant_id=plant_id)
+                    db.add(group)
+                    db.flush()
+                group_id = group.id
+
+            if equip is not None and group_id is None and equip.equipment_group_id is not None:
+                group_id = equip.equipment_group_id
+
+            if equip is not None and group_id is not None:
+                equip.equipment_group_id = group_id
 
             existing_record = None
             incoming_mr_no = row.get("mr_no")
@@ -126,9 +147,14 @@ async def commit_import(
                     .first()
                 )
 
+            # Ensure group fields are not duplicated in the incoming data
+            row.pop("equipment_group", None)
+            row.pop("equipment_group_id", None)
+
             if existing_record:
                 existing_record.plant_id = plant_id
                 existing_record.equipment_id = equipment_id
+                existing_record.equipment_group_id = group_id
                 existing_record.created_by_user_id = current_user.id
                 for field, value in row.items():
                     setattr(existing_record, field, value)
@@ -137,6 +163,7 @@ async def commit_import(
                 db_record = MaintenanceRecord(
                     plant_id=plant_id,
                     equipment_id=equipment_id,
+                    equipment_group_id=group_id,
                     created_by_user_id=current_user.id,
                     **row,
                 )

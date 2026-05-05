@@ -94,6 +94,7 @@ _COL_ALIASES: Dict[str, List[str]] = {
     "artisan_name": ["artisan name", "artisan", "technician", "mechanic", "repairer"],
     "mr_no": ["mr no.", "mr no", "mr#", "mr number", "mr_no", "mr", "maintenance request"],
     "plant": ["plant", "department", "section", "area"],
+    "equipment_group": ["equipment group", "group", "equipment group name", "asset group", "category"],
     "equipment": ["equipment name", "equipment", "machine name", "machine", "asset", "asset name"],
     "issue_description": [
         "fault description", "issue description", "issue", "description",

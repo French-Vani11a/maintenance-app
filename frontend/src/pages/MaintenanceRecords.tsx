@@ -55,7 +55,14 @@ export default function MaintenanceRecords() {
 
   function handleFilterChange(key: keyof RecordFilters, value: string) {
     setPage(0)
-    setFilters((prev) => ({ ...prev, [key]: value || undefined }))
+    setFilters((prev) => {
+      const newFilters = { ...prev, [key]: value || undefined }
+      // Clear equipment_group_id when plant changes
+      if (key === 'plant_id') {
+        newFilters.equipment_group_id = undefined
+      }
+      return newFilters
+    })
   }
 
   async function handleDelete(id: number) {
@@ -118,10 +125,14 @@ export default function MaintenanceRecords() {
           value={filters.equipment_group_id || ''}
           onChange={(e) => handleFilterChange('equipment_group_id', e.target.value)}
         >
-          <option value="">All Groups</option>
-          {groups.map((g) => (
-            <option key={g.id} value={g.id}>{g.name}</option>
-          ))}
+          <option value="">
+            {filters.plant_id ? 'All Groups' : 'No plant selected'}
+          </option>
+          {filters.plant_id ? groups
+            .filter((g) => g.plant_id === Number(filters.plant_id))
+            .map((g) => (
+              <option key={g.id} value={g.id}>{g.name}</option>
+            )) : null}
         </select>
 
         {/* Status filter */}
