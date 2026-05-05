@@ -519,6 +519,7 @@ export default function EquipmentManagement() {
                   setNewEquipForm((f) => ({
                     ...f,
                     plant_id: e.target.value ? Number(e.target.value) : null,
+                    equipment_group_id: null,
                   }))
                 }
               >
@@ -535,6 +536,7 @@ export default function EquipmentManagement() {
               <select
                 className="input"
                 value={newEquipForm.equipment_group_id ?? ''}
+                disabled={!newEquipForm.plant_id}
                 onChange={(e) =>
                   setNewEquipForm((f) => ({
                     ...f,
@@ -543,13 +545,15 @@ export default function EquipmentManagement() {
                 }
               >
                 <option value="">No group</option>
-                {groups
-                  .filter((g) => !selectedPlant || g.plant_id === selectedPlant)
-                  .map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.name}
-                    </option>
-                  ))}
+                {newEquipForm.plant_id
+                  ? groups
+                      .filter((g) => g.plant_id === newEquipForm.plant_id)
+                      .map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {g.name}
+                        </option>
+                      ))
+                  : null}
               </select>
             </div>
             <div className="w-28">
@@ -591,6 +595,7 @@ export default function EquipmentManagement() {
                             setEquipForm((f) => ({
                               ...f,
                               plant_id: e.target.value ? Number(e.target.value) : null,
+                              equipment_group_id: null,
                             }))
                           }
                         >
@@ -606,6 +611,7 @@ export default function EquipmentManagement() {
                         <select
                           className="input text-sm py-1"
                           value={equipForm.equipment_group_id ?? ''}
+                          disabled={!equipForm.plant_id}
                           onChange={(e) =>
                             setEquipForm((f) => ({
                               ...f,
@@ -614,13 +620,15 @@ export default function EquipmentManagement() {
                           }
                         >
                           <option value="">No group</option>
-                          {groups
-                            .filter((g) => !equipForm.plant_id || g.plant_id === equipForm.plant_id)
-                            .map((g) => (
-                              <option key={g.id} value={g.id}>
-                                {g.name}
-                              </option>
-                            ))}
+                          {equipForm.plant_id
+                            ? groups
+                                .filter((g) => g.plant_id === equipForm.plant_id)
+                                .map((g) => (
+                                  <option key={g.id} value={g.id}>
+                                    {g.name}
+                                  </option>
+                                ))
+                            : null}
                         </select>
                       </td>
                       <td>
