@@ -194,7 +194,17 @@ What happens during startup:
 3. Frontend starts and serves the React production build
 4. If `SEED_DEFAULT_ADMIN=true`, the backend creates the initial admin account if it does not already exist
 
-### 8) Verify that frontend, backend, and database are running
+### 8) Run database migrations
+
+After the stack starts, apply any pending database schema changes using Alembic:
+
+```powershell
+docker compose --env-file .env.prod -f docker-compose.prod.yml exec backend alembic upgrade head
+```
+
+This ensures the database schema is up to date with the latest migrations.
+
+### 9) Verify that frontend, backend, and database are running
 
 Check container status:
 
@@ -220,7 +230,7 @@ Check database logs:
 docker compose --env-file .env.prod -f docker-compose.prod.yml logs -f postgres
 ```
 
-### 9) Open the application
+### 10) Open the application
 
 With the current production file, you can test on the Windows server itself at:
 
@@ -252,7 +262,7 @@ After that, the app can be reached from another machine using:
 
 - `http://YOUR_SERVER_IP:3000`
 
-### 10) Recommended public production setup on Windows
+### 11) Recommended public production setup on Windows
 
 For a real public deployment, the safer pattern is:
 
@@ -268,7 +278,7 @@ That gives you:
 2. HTTPS support
 3. No need to expose backend or database ports directly
 
-### 11) First login after deployment
+### 12) First login after deployment
 
 If `SEED_DEFAULT_ADMIN=true`, log in using:
 
@@ -277,7 +287,7 @@ If `SEED_DEFAULT_ADMIN=true`, log in using:
 
 Change that password immediately after the first login.
 
-### 12) Updating the live server later
+### 13) Updating the live server later
 
 When you change the code and want to redeploy:
 
@@ -286,7 +296,13 @@ git pull
 docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
 ```
 
-### 13) Useful recovery checks
+If the update includes database schema changes, run migrations again:
+
+```powershell
+docker compose --env-file .env.prod -f docker-compose.prod.yml exec backend alembic upgrade head
+```
+
+### 14) Useful recovery checks
 
 If the app does not open:
 
@@ -305,7 +321,7 @@ If the backend fails to start:
 1. Check whether the database credentials in `.env.prod` and `backend/.env` match
 2. Check postgres logs
 
-### 14) Important note about data
+### 15) Important note about data
 
 Your live data is stored in the Docker PostgreSQL volume. It will survive normal restarts, but it will be deleted if you run:
 
@@ -315,7 +331,7 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml down -v
 
 Only use that command when you intentionally want to remove the database, such as before first go-live or during a planned reset.
 
-### 15) Windows IIS reverse proxy with HTTPS
+### 16) Windows IIS reverse proxy with HTTPS
 
 Use this option if you want the app to be available on a real domain over `https://`.
 
@@ -391,7 +407,7 @@ Then optionally redirect HTTP to HTTPS using URL Rewrite or an IIS redirect rule
 3. Open `https://your-domain.com`
 4. Test login, records listing, and dashboard loading
 
-### 16) Direct public hosting on port 3000
+### 17) Direct public hosting on port 3000
 
 Use this only if you want the fastest setup and do not need IIS in front immediately.
 
@@ -437,7 +453,7 @@ Notes:
 2. This is acceptable for internal/private network access
 3. For public internet access, IIS or another reverse proxy with HTTPS is the better setup
 
-### 17) PostgreSQL backup and restore on Windows Docker
+### 18) PostgreSQL backup and restore on Windows Docker
 
 Use these commands to protect live data before upgrades or major changes.
 
