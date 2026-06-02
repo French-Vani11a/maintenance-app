@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Plus, Pencil, Trash2, Check, X, Building2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Pencil, Trash2, Check, X, Building2, ChevronLeft, ChevronRight, Zap } from 'lucide-react'
 import {
+  completeJobCard,
   createEquipment,
   createEquipmentGroup,
+  createJobCard,
   createPlant,
   deleteEquipment,
   deleteEquipmentGroup,
@@ -10,6 +12,7 @@ import {
   getEquipment,
   getEquipmentDetails,
   getEquipmentGroups,
+  getJobCards,
   getPlants,
   updateEquipment,
   updateEquipmentGroup,
@@ -20,6 +23,7 @@ import type {
   EquipmentDetails,
   EquipmentGroup,
   Plant,
+  ServiceJobCard,
 } from '../types'
 import LoadingSpinner from '../components/LoadingSpinner'
 
@@ -78,6 +82,43 @@ export default function EquipmentManagement() {
   const [detailsModalLoading, setDetailsModalLoading] = useState(false)
   const [detailsModalError, setDetailsModalError] = useState('')
 
+  // Service job card form (inside details modal)
+  const [showServiceForm, setShowServiceForm] = useState(false)
+  const [serviceForm, setServiceForm] = useState({
+    service_type: '',
+    due_date: '',
+    service_description: '',
+    work_to_be_done: '',
+    assigned_artisan: '',
+    parts_required: '',
+    priority: 'medium',
+    notes: '',
+  })
+  const [serviceFormSaving, setServiceFormSaving] = useState(false)
+  const [serviceFormSuccess, setServiceFormSuccess] = useState('')
+
+  // Active job card for the currently viewed equipment
+  const [equipmentActiveCard, setEquipmentActiveCard] = useState<ServiceJobCard | null>(null)
+
+  // Completion form (shown when equipmentActiveCard exists)
+  const [completeForm, setCompleteForm] = useState({
+    service_date: '',
+    performed_by: '',
+    work_done: '',
+    parts_used: '',
+    completion_notes: '',
+  })
+  const [completing, setCompleting] = useState(false)
+
+  useEffect(() => {
+    if (!detailsModal) {
+      setShowServiceForm(false)
+      setServiceFormSuccess('')
+      setEquipmentActiveCard(null)
+      setCompleteForm({ service_date: '', performed_by: '', work_done: '', parts_used: '', completion_notes: '' })
+    }
+  }, [detailsModal])
+
   useEffect(() => {
     Promise.all([getPlants(), getEquipmentGroups()])
       .then(([p, g]) => {
@@ -131,12 +172,25 @@ export default function EquipmentManagement() {
     return 'On Schedule'
   }
 
+  async function loadEquipmentActiveCard(equipmentId: number) {
+    try {
+      const res = await getJobCards({ equipment_id: equipmentId, limit: 20 })
+      const active = res.job_cards.find((c) => c.status !== 'completed') ?? null
+      setEquipmentActiveCard(active)
+    } catch {
+      setEquipmentActiveCard(null)
+    }
+  }
+
   async function openDetailsModal(equipmentId: number) {
     setDetailsModalLoading(true)
     setDetailsModalError('')
     setDetailsModal(null)
     try {
-      const details = await getEquipmentDetails(equipmentId)
+      const [details] = await Promise.all([
+        getEquipmentDetails(equipmentId),
+        loadEquipmentActiveCard(equipmentId),
+      ])
       setDetailsModal(details)
     } catch (e: any) {
       setDetailsModalError(e?.response?.data?.detail || 'Failed to load equipment details')
@@ -274,6 +328,66 @@ export default function EquipmentManagement() {
       setModalEditing(false)
     } catch (e: any) {
       setDetailsModalError(e?.response?.data?.detail || 'Failed to update equipment')
+    }
+  }
+
+  async function handleCreateJobCard() {
+    if (!detailsModal?.id) return
+    setServiceFormSaving(true)
+    setDetailsModalError('')
+    setServiceFormSuccess('')
+    try {
+      const card: ServiceJobCard = await createJobCard({
+        equipment_id: detailsModal.id,
+        plant_id: detailsModal.plant_id,
+        service_type: serviceForm.service_type || null,
+        due_date: serviceForm.due_date || null,
+        service_description: serviceForm.service_description || null,
+        work_to_be_done: serviceForm.work_to_be_done || null,
+        assigned_artisan: serviceForm.assigned_artisan || null,
+        parts_required: serviceForm.parts_required || null,
+        priority: serviceForm.priority,
+        notes: serviceForm.notes || null,
+      })
+      setServiceFormSuccess(`Job card ${card.job_card_number} created.`)
+      setShowServiceForm(false)
+      setServiceForm({ service_type: '', due_date: '', service_description: '', work_to_be_done: '', assigned_artisan: '', parts_required: '', priority: 'medium', notes: '' })
+      // Refresh active card so button switches to Mark Complete
+      await loadEquipmentActiveCard(detailsModal.id)
+    } catch (e: any) {
+      setDetailsModalError(e?.response?.data?.detail || 'Failed to create job card')
+    } finally {
+      setServiceFormSaving(false)
+    }
+  }
+
+  async function handleCompleteFromModal() {
+    if (!equipmentActiveCard || !detailsModal?.id) return
+    if (!completeForm.service_date) { setDetailsModalError('Service date is required'); return }
+    setCompleting(true)
+    setDetailsModalError('')
+    try {
+      await completeJobCard(equipmentActiveCard.id, {
+        service_date: completeForm.service_date,
+        performed_by: completeForm.performed_by || null,
+        work_done: completeForm.work_done || null,
+        parts_used: completeForm.parts_used || null,
+        completion_notes: completeForm.completion_notes || null,
+      })
+      setShowServiceForm(false)
+      setCompleteForm({ service_date: '', performed_by: '', work_done: '', parts_used: '', completion_notes: '' })
+      setServiceFormSuccess('Service completed and history recorded.')
+      // Refresh equipment details (updated service dates) + clear active card
+      const [updated] = await Promise.all([
+        getEquipmentDetails(detailsModal.id),
+        loadEquipmentActiveCard(detailsModal.id),
+      ])
+      setDetailsModal(updated)
+      loadEquipment()
+    } catch (e: any) {
+      setDetailsModalError(e?.response?.data?.detail || 'Failed to complete job card')
+    } finally {
+      setCompleting(false)
     }
   }
 
@@ -812,10 +926,34 @@ export default function EquipmentManagement() {
                   <div className="flex items-center gap-1 flex-shrink-0">
                     {!modalEditing && (
                       <>
+                        {equipmentActiveCard ? (
+                          <button
+                            title={`Mark complete — ${equipmentActiveCard.job_card_number}`}
+                            onClick={() => { setShowServiceForm(true); setServiceFormSuccess('') }}
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded bg-green-600 text-white hover:bg-green-700 transition-colors"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                            Mark Complete
+                          </button>
+                        ) : (
+                          <button
+                            title="Create service job card"
+                            onClick={() => {
+                              setServiceFormSuccess('')
+                              setServiceForm((f) => ({ ...f, due_date: detailsModal.next_service_date || '', service_type: detailsModal.service_type || '' }))
+                              setShowServiceForm((v) => !v)
+                            }}
+                            className={`p-1.5 rounded transition-colors ${showServiceForm ? 'bg-green-100 text-green-700' : 'text-gray-400 hover:text-green-600 hover:bg-green-50'}`}
+                          >
+                            <Zap className="h-4 w-4" />
+                          </button>
+                        )}
                         <button
                           title="Edit equipment"
                           onClick={() => {
                             setDetailsModalError('')
+                            setShowServiceForm(false)
+                            setServiceFormSuccess('')
                             setEquipForm({
                               name: detailsModal.equipment_name,
                               code: detailsModal.equipment_code || '',
@@ -861,6 +999,13 @@ export default function EquipmentManagement() {
 
                 {detailsModalError && (
                   <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600">{detailsModalError}</div>
+                )}
+
+                {serviceFormSuccess && (
+                  <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700 flex items-center justify-between">
+                    {serviceFormSuccess}
+                    <button onClick={() => setServiceFormSuccess('')}><X className="h-4 w-4" /></button>
+                  </div>
                 )}
 
                 {/* ── Edit form ── */}
@@ -987,6 +1132,108 @@ export default function EquipmentManagement() {
                     <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Service Notes</p>
                     <p className="text-sm text-gray-700 whitespace-pre-wrap">{detailsModal.service_notes}</p>
                   </div>
+                )}
+
+                {/* Service Job Card form — create or complete depending on active card */}
+                {showServiceForm && (
+                  equipmentActiveCard ? (
+                    /* ── Complete form ── */
+                    <div className="border-t pt-4 space-y-4">
+                      <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                        <Check className="h-4 w-4 text-green-600" />
+                        Complete Service — <span className="font-mono">{equipmentActiveCard.job_card_number}</span>
+                      </h3>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-1">
+                          <label className="label">Service Date *</label>
+                          <input type="date" className="input" value={completeForm.service_date} onChange={(e) => setCompleteForm((f) => ({ ...f, service_date: e.target.value }))} />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="label">Performed By</label>
+                          <input type="text" className="input" value={completeForm.performed_by} onChange={(e) => setCompleteForm((f) => ({ ...f, performed_by: e.target.value }))} />
+                        </div>
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className="label">Work Done</label>
+                          <textarea className="input resize-none" rows={2} value={completeForm.work_done} onChange={(e) => setCompleteForm((f) => ({ ...f, work_done: e.target.value }))} />
+                        </div>
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className="label">Parts Used</label>
+                          <textarea className="input resize-none" rows={2} value={completeForm.parts_used} onChange={(e) => setCompleteForm((f) => ({ ...f, parts_used: e.target.value }))} />
+                        </div>
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className="label">Completion Notes</label>
+                          <textarea className="input resize-none" rows={2} value={completeForm.completion_notes} onChange={(e) => setCompleteForm((f) => ({ ...f, completion_notes: e.target.value }))} />
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={handleCompleteFromModal} disabled={completing} className="btn-primary flex items-center gap-1.5">
+                          {completing ? <LoadingSpinner size="sm" /> : <Check className="h-4 w-4" />}
+                          Confirm Complete
+                        </button>
+                        <button onClick={() => setShowServiceForm(false)} className="btn-secondary">Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* ── Create form ── */
+                    <div className="border-t pt-4 space-y-4">
+                      <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                        <Zap className="h-4 w-4 text-green-600" />
+                        Create Service Job Card
+                      </h3>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-1">
+                          <label className="label">Service Type</label>
+                          <input type="text" className="input" value={serviceForm.service_type} onChange={(e) => setServiceForm((f) => ({ ...f, service_type: e.target.value }))} />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="label">Due Date</label>
+                          <input
+                            type="date"
+                            className="input"
+                            value={serviceForm.due_date}
+                            placeholder={detailsModal.next_service_date || ''}
+                            onChange={(e) => setServiceForm((f) => ({ ...f, due_date: e.target.value }))}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="label">Assigned Artisan</label>
+                          <input type="text" className="input" value={serviceForm.assigned_artisan} onChange={(e) => setServiceForm((f) => ({ ...f, assigned_artisan: e.target.value }))} />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="label">Priority</label>
+                          <select className="input" value={serviceForm.priority} onChange={(e) => setServiceForm((f) => ({ ...f, priority: e.target.value }))}>
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                            <option value="critical">Critical</option>
+                          </select>
+                        </div>
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className="label">Service Description</label>
+                          <textarea className="input resize-none" rows={2} value={serviceForm.service_description} onChange={(e) => setServiceForm((f) => ({ ...f, service_description: e.target.value }))} />
+                        </div>
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className="label">Work To Be Done</label>
+                          <textarea className="input resize-none" rows={2} value={serviceForm.work_to_be_done} onChange={(e) => setServiceForm((f) => ({ ...f, work_to_be_done: e.target.value }))} />
+                        </div>
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className="label">Parts Required</label>
+                          <textarea className="input resize-none" rows={2} value={serviceForm.parts_required} onChange={(e) => setServiceForm((f) => ({ ...f, parts_required: e.target.value }))} />
+                        </div>
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className="label">Notes</label>
+                          <textarea className="input resize-none" rows={2} value={serviceForm.notes} onChange={(e) => setServiceForm((f) => ({ ...f, notes: e.target.value }))} />
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={handleCreateJobCard} disabled={serviceFormSaving} className="btn-primary flex items-center gap-1.5">
+                          {serviceFormSaving ? <LoadingSpinner size="sm" /> : <Check className="h-4 w-4" />}
+                          Save Job Card
+                        </button>
+                        <button onClick={() => setShowServiceForm(false)} className="btn-secondary">Cancel</button>
+                      </div>
+                    </div>
+                  )
                 )}
 
                 {/* Recent Service History */}
