@@ -1,20 +1,16 @@
 import { useEffect, useState } from 'react'
-import { Plus, Pencil, Trash2, Check, X, Building2, ChevronLeft, ChevronRight, Eye } from 'lucide-react'
+import { Plus, Pencil, Trash2, Check, X, Building2, ChevronLeft, ChevronRight } from 'lucide-react'
 import {
   createEquipment,
   createEquipmentGroup,
   createPlant,
-  createPartsReplacement,
-  createServiceHistory,
   deleteEquipment,
   deleteEquipmentGroup,
   deletePlant,
   getEquipment,
   getEquipmentDetails,
   getEquipmentGroups,
-  getPartsReplacements,
   getPlants,
-  getServiceHistory,
   updateEquipment,
   updateEquipmentGroup,
   updatePlant,
@@ -23,9 +19,7 @@ import type {
   Equipment,
   EquipmentDetails,
   EquipmentGroup,
-  PartsReplacement,
   Plant,
-  ServiceHistory,
 } from '../types'
 import LoadingSpinner from '../components/LoadingSpinner'
 
@@ -79,24 +73,6 @@ export default function EquipmentManagement() {
 
   // Equipment Details modal state
   const [modalEditing, setModalEditing] = useState(false)
-
-  // Service panel state
-  const [activeEquipment, setActiveEquipment] = useState<number | null>(null)
-  const [serviceHistory, setServiceHistory] = useState<ServiceHistory[]>([])
-  const [partsReplacements, setPartsReplacements] = useState<PartsReplacement[]>([])
-  const [newHistoryEntry, setNewHistoryEntry] = useState({
-    service_date: '',
-    service_type: '',
-    performed_by: '',
-    notes: '',
-  })
-  const [newReplacementEntry, setNewReplacementEntry] = useState({
-    part_name: '',
-    interval_days: null as number | null,
-    last_replacement_date: '',
-    notes: '',
-  })
-  const [detailsError, setDetailsError] = useState('')
 
   const [detailsModal, setDetailsModal] = useState<EquipmentDetails | null>(null)
   const [detailsModalLoading, setDetailsModalLoading] = useState(false)
@@ -155,25 +131,6 @@ export default function EquipmentManagement() {
     return 'On Schedule'
   }
 
-  async function loadServiceDetails(equipmentId: number) {
-    try {
-      setDetailsError('')
-      const [history, replacements] = await Promise.all([
-        getServiceHistory(equipmentId),
-        getPartsReplacements(equipmentId),
-      ])
-      setServiceHistory(history)
-      setPartsReplacements(replacements)
-    } catch (e: any) {
-      setDetailsError('Failed to load service details')
-    }
-  }
-
-  async function openServicePanel(equipmentId: number) {
-    setActiveEquipment(equipmentId)
-    await loadServiceDetails(equipmentId)
-  }
-
   async function openDetailsModal(equipmentId: number) {
     setDetailsModalLoading(true)
     setDetailsModalError('')
@@ -186,40 +143,6 @@ export default function EquipmentManagement() {
       setDetailsModal({} as EquipmentDetails)
     } finally {
       setDetailsModalLoading(false)
-    }
-  }
-
-  async function handleCreateServiceHistory() {
-    if (!activeEquipment || !newHistoryEntry.service_date) return
-    try {
-      await createServiceHistory({
-        equipment_id: activeEquipment,
-        service_date: newHistoryEntry.service_date,
-        service_type: newHistoryEntry.service_type || null,
-        performed_by: newHistoryEntry.performed_by || null,
-        notes: newHistoryEntry.notes || null,
-      })
-      setNewHistoryEntry({ service_date: '', service_type: '', performed_by: '', notes: '' })
-      await loadServiceDetails(activeEquipment)
-    } catch (e: any) {
-      setDetailsError(e?.response?.data?.detail || 'Failed to create service history')
-    }
-  }
-
-  async function handleCreatePartsReplacement() {
-    if (!activeEquipment || !newReplacementEntry.part_name) return
-    try {
-      await createPartsReplacement({
-        equipment_id: activeEquipment,
-        part_name: newReplacementEntry.part_name,
-        interval_days: newReplacementEntry.interval_days,
-        last_replacement_date: newReplacementEntry.last_replacement_date || null,
-        notes: newReplacementEntry.notes || null,
-      })
-      setNewReplacementEntry({ part_name: '', interval_days: null, last_replacement_date: '', notes: '' })
-      await loadServiceDetails(activeEquipment)
-    } catch (e: any) {
-      setDetailsError(e?.response?.data?.detail || 'Failed to create parts replacement')
     }
   }
 
@@ -791,7 +714,6 @@ export default function EquipmentManagement() {
                 <th>Service Status</th>
                 <th>Type</th>
                 <th>Notes</th>
-                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -818,24 +740,11 @@ export default function EquipmentManagement() {
                   </td>
                   <td className="text-sm text-gray-600">{eq.service_type || '—'}</td>
                   <td className="text-sm text-gray-600 max-w-[160px] truncate">{eq.service_notes || '—'}</td>
-                  <td>
-                    <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        title="View details"
-                        onClick={() => openDetailsModal(eq.id)}
-                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                      ><Eye className="h-3.5 w-3.5" /></button>
-                      <button
-                        onClick={() => openServicePanel(eq.id)}
-                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors text-xs"
-                      >History</button>
-                    </div>
-                  </td>
                 </tr>
               ))}
               {visibleEquipment.length === 0 && (
                 <tr>
-                  <td colSpan={14} className="text-center text-gray-400 py-8">
+                  <td colSpan={13} className="text-center text-gray-400 py-8">
                     No equipment found
                   </td>
                 </tr>
@@ -874,137 +783,6 @@ export default function EquipmentManagement() {
           </div>
         )}
 
-        {activeEquipment && (
-          <div className="space-y-4">
-            <div className="card space-y-4">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-700">Service Details</h2>
-                  <p className="text-sm text-gray-500">Equipment ID: {activeEquipment}</p>
-                </div>
-                <button
-                  className="btn-secondary btn-sm"
-                  onClick={() => setActiveEquipment(null)}
-                >
-                  Close
-                </button>
-              </div>
-              {detailsError && <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600">{detailsError}</div>}
-              <div className="grid gap-4 lg:grid-cols-2">
-                <div className="card space-y-4">
-                  <h3 className="text-sm font-semibold text-gray-700">Service History</h3>
-                  <div className="space-y-3">
-                    {serviceHistory.length === 0 ? (
-                      <p className="text-xs text-gray-400">No completed service records yet.</p>
-                    ) : (
-                      <ul className="space-y-2 text-sm text-gray-700">
-                        {serviceHistory.map((record) => (
-                          <li key={record.id} className="rounded-lg border border-gray-200 p-3 bg-gray-50">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-medium">{record.service_type || 'Service'}</span>
-                              <span className="text-xs text-gray-500">{record.service_date}</span>
-                            </div>
-                            <p className="text-xs text-gray-500">Performed by: {record.performed_by || 'Unknown'}</p>
-                            <p className="text-xs text-gray-500 mt-1">{record.notes || 'No notes'}</p>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <label className="label">New Service Date</label>
-                    <input
-                      type="date"
-                      className="input"
-                      value={newHistoryEntry.service_date}
-                      onChange={(e) => setNewHistoryEntry((f) => ({ ...f, service_date: e.target.value }))}
-                    />
-                    <label className="label">Service Type</label>
-                    <input
-                      type="text"
-                      className="input"
-                      value={newHistoryEntry.service_type}
-                      onChange={(e) => setNewHistoryEntry((f) => ({ ...f, service_type: e.target.value }))}
-                    />
-                    <label className="label">Performed By</label>
-                    <input
-                      type="text"
-                      className="input"
-                      value={newHistoryEntry.performed_by}
-                      onChange={(e) => setNewHistoryEntry((f) => ({ ...f, performed_by: e.target.value }))}
-                    />
-                    <label className="label">Notes</label>
-                    <input
-                      type="text"
-                      className="input"
-                      value={newHistoryEntry.notes}
-                      onChange={(e) => setNewHistoryEntry((f) => ({ ...f, notes: e.target.value }))}
-                    />
-                    <button onClick={handleCreateServiceHistory} className="btn-primary btn-sm">
-                      Add Service History
-                    </button>
-                  </div>
-                </div>
-                <div className="card space-y-4">
-                  <h3 className="text-sm font-semibold text-gray-700">Parts Replacement</h3>
-                  <div className="space-y-3">
-                    {partsReplacements.length === 0 ? (
-                      <p className="text-xs text-gray-400">No scheduled replacements yet.</p>
-                    ) : (
-                      <ul className="space-y-2 text-sm text-gray-700">
-                        {partsReplacements.map((replacement) => (
-                          <li key={replacement.id} className="rounded-lg border border-gray-200 p-3 bg-gray-50">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-medium">{replacement.part_name}</span>
-                              <span className="text-xs text-gray-500">{replacement.replacement_status || 'Not Scheduled'}</span>
-                            </div>
-                            <p className="text-xs text-gray-500">Interval: {replacement.interval_days ?? '—'} days</p>
-                            <p className="text-xs text-gray-500">Next: {replacement.next_replacement_date || '—'}</p>
-                            <p className="text-xs text-gray-500 mt-1">{replacement.notes || 'No notes'}</p>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <label className="label">Part Name</label>
-                    <input
-                      type="text"
-                      className="input"
-                      value={newReplacementEntry.part_name}
-                      onChange={(e) => setNewReplacementEntry((f) => ({ ...f, part_name: e.target.value }))}
-                    />
-                    <label className="label">Interval (days)</label>
-                    <input
-                      type="number"
-                      min={1}
-                      className="input"
-                      value={newReplacementEntry.interval_days ?? ''}
-                      onChange={(e) => setNewReplacementEntry((f) => ({ ...f, interval_days: e.target.value ? Number(e.target.value) : null }))}
-                    />
-                    <label className="label">Last Replacement</label>
-                    <input
-                      type="date"
-                      className="input"
-                      value={newReplacementEntry.last_replacement_date}
-                      onChange={(e) => setNewReplacementEntry((f) => ({ ...f, last_replacement_date: e.target.value }))}
-                    />
-                    <label className="label">Notes</label>
-                    <input
-                      type="text"
-                      className="input"
-                      value={newReplacementEntry.notes}
-                      onChange={(e) => setNewReplacementEntry((f) => ({ ...f, notes: e.target.value }))}
-                    />
-                    <button onClick={handleCreatePartsReplacement} className="btn-primary btn-sm">
-                      Add Replacement
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ── Equipment Details Modal ─────────────────────────────────────────── */}
