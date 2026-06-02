@@ -1,6 +1,9 @@
-import { NavLink } from 'react-router-dom'
+import { useState } from 'react'
+import { NavLink, useLocation } from 'react-router-dom'
 import {
   BarChart2,
+  CalendarCheck,
+  ChevronDown,
   ClipboardList,
   Download,
   FileText,
@@ -9,17 +12,12 @@ import {
   LogOut,
   Shield,
   Wrench,
-  CalendarCheck,
   Zap,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
-const nav = [
-  { to: '/dashboard', icon: BarChart2, label: 'Dashboard' },
-  { to: '/records', icon: ClipboardList, label: 'Records' },
-  { to: '/equipment', icon: Wrench, label: 'Equipment' },
+const standaloneNav = [
   { to: '/service-now', icon: Zap, label: 'Service Now' },
-  { to: '/service-dashboard', icon: CalendarCheck, label: 'Service Dashboard' },
   { to: '/import', icon: Download, label: 'Import' },
   { to: '/reports', icon: FileText, label: 'Reports' },
 ]
@@ -28,7 +26,85 @@ const adminNav = [
   { to: '/users', icon: Shield, label: 'Users' },
   { to: '/logs', icon: History, label: 'Audit Logs' },
 ]
+
 const generalNav = [{ to: '/change-password', icon: KeyRound, label: 'Change Password' }]
+
+const groups = [
+  {
+    label: 'Dashboards',
+    icon: BarChart2,
+    routes: ['/dashboard', '/service-dashboard'],
+    items: [
+      { to: '/dashboard', icon: BarChart2, label: 'Dashboard' },
+      { to: '/service-dashboard', icon: CalendarCheck, label: 'Service Dashboard' },
+    ],
+  },
+  {
+    label: 'Maintenance',
+    icon: Wrench,
+    routes: ['/records', '/equipment'],
+    items: [
+      { to: '/records', icon: ClipboardList, label: 'Records' },
+      { to: '/equipment', icon: Wrench, label: 'Equipment' },
+    ],
+  },
+]
+
+function NavGroup({
+  label,
+  icon: Icon,
+  routes,
+  items,
+}: {
+  label: string
+  icon: React.ElementType
+  routes: string[]
+  items: { to: string; icon: React.ElementType; label: string }[]
+}) {
+  const location = useLocation()
+  const isChildActive = routes.some((r) => location.pathname.startsWith(r))
+  const [open, setOpen] = useState(isChildActive)
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+          isChildActive
+            ? 'bg-gray-800 text-white'
+            : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+        }`}
+      >
+        <Icon className="h-4 w-4 shrink-0" />
+        <span className="flex-1 text-left">{label}</span>
+        <ChevronDown
+          className={`h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {open && (
+        <div className="mt-0.5 ml-3 pl-3 border-l border-gray-700 space-y-0.5">
+          {items.map(({ to, icon: ItemIcon, label: itemLabel }) => (
+            <NavLink
+              key={to}
+              to={to}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                }`
+              }
+            >
+              <ItemIcon className="h-3.5 w-3.5 shrink-0" />
+              {itemLabel}
+            </NavLink>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function Sidebar() {
   const { user, logout } = useAuth()
@@ -46,7 +122,13 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-        {nav.map(({ to, icon: Icon, label }) => (
+        {/* Grouped nav */}
+        {groups.map((group) => (
+          <NavGroup key={group.label} {...group} />
+        ))}
+
+        {/* Standalone nav */}
+        {standaloneNav.map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}
@@ -62,6 +144,8 @@ export default function Sidebar() {
             {label}
           </NavLink>
         ))}
+
+        {/* Admin nav */}
         {user?.role === 'admin' &&
           adminNav.map(({ to, icon: Icon, label }) => (
             <NavLink
@@ -79,6 +163,8 @@ export default function Sidebar() {
               {label}
             </NavLink>
           ))}
+
+        {/* General user nav */}
         {user?.role === 'general' &&
           generalNav.map(({ to, icon: Icon, label }) => (
             <NavLink
