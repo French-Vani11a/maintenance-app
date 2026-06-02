@@ -15,6 +15,10 @@ class ServiceHistory(Base):
     service_type = Column(String(100), nullable=True)
     performed_by = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
+    work_done = Column(Text, nullable=True)
+    parts_used = Column(Text, nullable=True)
+    job_card_id = Column(Integer, ForeignKey("service_job_cards.id"), nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     equipment = relationship("Equipment", back_populates="service_histories")
+    job_card = relationship("ServiceJobCard", foreign_keys=[job_card_id])

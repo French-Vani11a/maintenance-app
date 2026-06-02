@@ -1,0 +1,1067 @@
+import { useEffect, useState } from 'react'
+import {
+  AlertTriangle,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardList,
+  History,
+  Plus,
+  Printer,
+  Search,
+  Trash2,
+  X,
+} from 'lucide-react'
+import {
+  completeJobCard,
+  createJobCard,
+  deleteJobCard,
+  getDueEquipment,
+  getEnrichedServiceHistory,
+  getJobCards,
+  getPlants,
+  searchAllEquipment,
+  updateJobCard,
+} from '../services/api'
+import type {
+  DueEquipment,
+  EnrichedServiceHistory,
+  JobCardsResponse,
+  Plant,
+  ServiceJobCard,
+} from '../types'
+import LoadingSpinner from '../components/LoadingSpinner'
+
+// ── Print helper ──────────────────────────────────────────────────────────────
+
+function printJobCard(card: ServiceJobCard) {
+  const priorityColor: Record<string, string> = {
+    critical: '#dc2626',
+    high: '#ea580c',
+    medium: '#d97706',
+    low: '#16a34a',
+  }
+  const color = priorityColor[card.priority] ?? '#6b7280'
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/>
+<title>Job Card ${card.job_card_number}</title>
+<style>
+  body{font-family:Arial,sans-serif;padding:32px;color:#111;font-size:14px}
+  h1{font-size:22px;margin:0}
+  .sub{color:#666;font-size:13px;margin-bottom:24px;margin-top:4px}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:20px 0}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 32px}
+  .field{margin-bottom:4px}
+  .label{font-size:10px;text-transform:uppercase;color:#888;font-weight:700;letter-spacing:.05em}
+  .value{margin-top:2px;font-size:14px}
+  .full{grid-column:span 2}
+  .badge{display:inline-block;padding:2px 10px;border-radius:9999px;font-size:12px;font-weight:600}
+  .sigs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:32px;margin-top:48px}
+  .sig{border-top:1px solid #000;padding-top:6px;font-size:11px;color:#666}
+  @media print{body{padding:16px}}
+</style></head><body>
+<h1>Service Job Card</h1>
+<div class="sub">${card.job_card_number} &nbsp;|&nbsp; Created ${card.created_at ? new Date(card.created_at).toLocaleDateString() : '—'} &nbsp;|&nbsp; By: ${card.created_by_user_name ?? '—'}</div>
+<hr/>
+<div class="grid">
+  <div class="field"><div class="label">Equipment</div><div class="value">${card.equipment_name ?? '—'}${card.equipment_code ? ' (' + card.equipment_code + ')' : ''}</div></div>
+  <div class="field"><div class="label">Plant</div><div class="value">${card.plant_name ?? '—'}</div></div>
+  <div class="field"><div class="label">Service Type</div><div class="value">${card.service_type ?? '—'}</div></div>
+  <div class="field"><div class="label">Due Date</div><div class="value">${card.due_date ?? '—'}</div></div>
+  <div class="field"><div class="label">Assigned Artisan</div><div class="value">${card.assigned_artisan ?? '—'}</div></div>
+  <div class="field"><div class="label">Priority</div><div class="value"><span class="badge" style="background:${color}22;color:${color}">${card.priority.toUpperCase()}</span></div></div>
+  <div class="field full"><div class="label">Service Description</div><div class="value">${card.service_description ?? '—'}</div></div>
+  <div class="field full"><div class="label">Work To Be Done</div><div class="value">${card.work_to_be_done ?? '—'}</div></div>
+  <div class="field full"><div class="label">Parts Required</div><div class="value">${card.parts_required ?? '—'}</div></div>
+  <div class="field full"><div class="label">Notes</div><div class="value">${card.notes ?? '—'}</div></div>
+</div>
+<hr/>
+<div class="sigs">
+  <div class="sig">Prepared By &amp; Date</div>
+  <div class="sig">Technician / Artisan &amp; Date</div>
+  <div class="sig">Supervisor &amp; Date</div>
+</div>
+</body></html>`
+  const win = window.open('', '_blank', 'width=850,height=650')
+  if (win) {
+    win.document.write(html)
+    win.document.close()
+    win.onload = () => win.print()
+  }
+}
+
+// ── Empty form constants ──────────────────────────────────────────────────────
+
+const EMPTY_JC_FORM = {
+  equipment_id: null as number | null,
+  plant_id: null as number | null,
+  service_type: '',
+  due_date: '',
+  service_description: '',
+  work_to_be_done: '',
+  assigned_artisan: '',
+  parts_required: '',
+  priority: 'medium',
+  notes: '',
+}
+
+const EMPTY_COMPLETE_FORM = {
+  service_date: '',
+  performed_by: '',
+  work_done: '',
+  parts_used: '',
+  completion_notes: '',
+}
+
+// ── Priority badge ────────────────────────────────────────────────────────────
+
+function PriorityBadge({ priority }: { priority: string }) {
+  const cls =
+    priority === 'critical' ? 'bg-red-100 text-red-800' :
+    priority === 'high'     ? 'bg-orange-100 text-orange-800' :
+    priority === 'medium'   ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-green-100 text-green-800'
+  return <span className={`badge ${cls}`}>{priority}</span>
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const cls =
+    status === 'completed'  ? 'bg-green-100 text-green-800' :
+    status === 'in-progress'? 'bg-blue-100 text-blue-800' :
+                              'bg-yellow-100 text-yellow-800'
+  return <span className={`badge ${cls}`}>{status}</span>
+}
+
+function ServiceStatusBadge({ status }: { status: string }) {
+  const cls =
+    status === 'Overdue'    ? 'bg-red-100 text-red-800' :
+    status === 'Due Soon'   ? 'bg-yellow-100 text-yellow-800' :
+    status === 'On Schedule'? 'bg-green-100 text-green-800' :
+                              'bg-gray-100 text-gray-600'
+  return <span className={`badge ${cls}`}>{status}</span>
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
+const HIST_PAGE_SIZE = 25
+
+export default function ServiceNow() {
+  const [activeTab, setActiveTab] = useState<'due' | 'history'>('due')
+  const [plants, setPlants] = useState<Plant[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  // Due equipment section
+  const [dueEquipment, setDueEquipment] = useState<DueEquipment[]>([])
+  const [dueSearch, setDueSearch] = useState('')
+  const [duePlantId, setDuePlantId] = useState<number | null>(null)
+  const [dueLoading, setDueLoading] = useState(false)
+
+  // Manual search for any equipment
+  const [manualSearch, setManualSearch] = useState('')
+  const [manualResults, setManualResults] = useState<DueEquipment[]>([])
+  const [manualSearching, setManualSearching] = useState(false)
+
+  // Open job cards (table display — filtered by user-selected status)
+  const [jobCards, setJobCards] = useState<ServiceJobCard[]>([])
+  const [jobCardSearch, setJobCardSearch] = useState('')
+  const [jobCardStatus, setJobCardStatus] = useState('open')
+  const [jobCardsTotal, setJobCardsTotal] = useState(0)
+
+  // Active job cards lookup — always non-completed, used by equipment row buttons
+  const [activeCardsByEquipmentId, setActiveCardsByEquipmentId] = useState<Record<number, ServiceJobCard>>({})
+
+  // Job card form modal
+  const [jcModal, setJcModal] = useState<'create' | 'view' | null>(null)
+  const [jcForm, setJcForm] = useState({ ...EMPTY_JC_FORM })
+  const [jcFormEquipmentLabel, setJcFormEquipmentLabel] = useState('')
+  const [viewingCard, setViewingCard] = useState<ServiceJobCard | null>(null)
+  const [jcSaving, setJcSaving] = useState(false)
+  const [jcError, setJcError] = useState('')
+
+  // Complete form (inside view modal)
+  const [showCompleteForm, setShowCompleteForm] = useState(false)
+  const [completeForm, setCompleteForm] = useState({ ...EMPTY_COMPLETE_FORM })
+  const [completing, setCompleting] = useState(false)
+
+  // Service history section
+  const [histRecords, setHistRecords] = useState<EnrichedServiceHistory[]>([])
+  const [histTotal, setHistTotal] = useState(0)
+  const [histPage, setHistPage] = useState(0)
+  const [histLoading, setHistLoading] = useState(false)
+  const [histSearch, setHistSearch] = useState('')
+  const [histPlantId, setHistPlantId] = useState<number | null>(null)
+  const [histDateFrom, setHistDateFrom] = useState('')
+  const [histDateTo, setHistDateTo] = useState('')
+  const [histArtisan, setHistArtisan] = useState('')
+  const [histServiceType, setHistServiceType] = useState('')
+
+  // Load plants + initial data
+  useEffect(() => {
+    Promise.all([getPlants(), loadDueEquipment(), loadJobCards(), loadActiveCards()])
+      .then(([p]) => setPlants(p))
+      .catch((e) => setError(e?.response?.data?.detail || 'Failed to load data'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => { loadDueEquipment() }, [dueSearch, duePlantId])
+  useEffect(() => { loadJobCards() }, [jobCardSearch, jobCardStatus])
+  useEffect(() => { if (activeTab === 'history') loadHistory() }, [activeTab, histPage])
+
+  async function loadDueEquipment() {
+    setDueLoading(true)
+    try {
+      const items = await getDueEquipment({ search: dueSearch || undefined, plant_id: duePlantId || undefined })
+      setDueEquipment(items)
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || 'Failed to load due equipment')
+    } finally {
+      setDueLoading(false)
+    }
+  }
+
+  async function loadJobCards() {
+    try {
+      const res = await getJobCards({
+        status: jobCardStatus || undefined,
+        search: jobCardSearch || undefined,
+        limit: 100,
+      })
+      setJobCards(res.job_cards)
+      setJobCardsTotal(res.total)
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || 'Failed to load job cards')
+    }
+  }
+
+  async function loadActiveCards() {
+    try {
+      const res = await getJobCards({ limit: 1000 })
+      const map: Record<number, ServiceJobCard> = {}
+      for (const card of res.job_cards) {
+        if (card.status !== 'completed') {
+          map[card.equipment_id] = card
+        }
+      }
+      setActiveCardsByEquipmentId(map)
+    } catch {
+      // non-fatal — button state falls back to "Service"
+    }
+  }
+
+  async function loadHistory() {
+    setHistLoading(true)
+    try {
+      const res = await getEnrichedServiceHistory({
+        plant_id: histPlantId || undefined,
+        date_from: histDateFrom || undefined,
+        date_to: histDateTo || undefined,
+        artisan: histArtisan || undefined,
+        service_type: histServiceType || undefined,
+        search: histSearch || undefined,
+        skip: histPage * HIST_PAGE_SIZE,
+        limit: HIST_PAGE_SIZE,
+      })
+      setHistRecords(res.records)
+      setHistTotal(res.total)
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || 'Failed to load history')
+    } finally {
+      setHistLoading(false)
+    }
+  }
+
+  async function handleManualSearch() {
+    if (!manualSearch.trim()) return
+    setManualSearching(true)
+    try {
+      const results = await searchAllEquipment(manualSearch.trim(), duePlantId || undefined)
+      setManualResults(results)
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || 'Search failed')
+    } finally {
+      setManualSearching(false)
+    }
+  }
+
+  function openCreateModal(eq: DueEquipment) {
+    setJcForm({
+      ...EMPTY_JC_FORM,
+      equipment_id: eq.id,
+      plant_id: eq.plant_id,
+      service_type: eq.service_type || '',
+      due_date: eq.next_service_date || '',
+    })
+    setJcFormEquipmentLabel(`${eq.equipment_name}${eq.equipment_code ? ' (' + eq.equipment_code + ')' : ''} — ${eq.plant_name ?? 'Unassigned'}`)
+    setJcError('')
+    setJcModal('create')
+  }
+
+  function openViewModal(card: ServiceJobCard) {
+    setViewingCard(card)
+    setShowCompleteForm(false)
+    setCompleteForm({ ...EMPTY_COMPLETE_FORM })
+    setJcError('')
+    setJcModal('view')
+  }
+
+  function openViewModalWithComplete(card: ServiceJobCard) {
+    setViewingCard(card)
+    setShowCompleteForm(true)
+    setCompleteForm({ ...EMPTY_COMPLETE_FORM })
+    setJcError('')
+    setJcModal('view')
+  }
+
+  function closeModal() {
+    setJcModal(null)
+    setViewingCard(null)
+    setShowCompleteForm(false)
+    setJcError('')
+  }
+
+  async function handleSaveJobCard() {
+    if (!jcForm.equipment_id) { setJcError('Equipment is required'); return }
+    setJcSaving(true)
+    setJcError('')
+    try {
+      await createJobCard({
+        equipment_id: jcForm.equipment_id,
+        plant_id: jcForm.plant_id,
+        service_type: jcForm.service_type || null,
+        due_date: jcForm.due_date || null,
+        service_description: jcForm.service_description || null,
+        work_to_be_done: jcForm.work_to_be_done || null,
+        assigned_artisan: jcForm.assigned_artisan || null,
+        parts_required: jcForm.parts_required || null,
+        priority: jcForm.priority,
+        notes: jcForm.notes || null,
+      })
+      closeModal()
+      setManualResults([])
+      setManualSearch('')
+      await Promise.all([loadDueEquipment(), loadJobCards(), loadActiveCards()])
+    } catch (e: any) {
+      setJcError(e?.response?.data?.detail || 'Failed to save job card')
+    } finally {
+      setJcSaving(false)
+    }
+  }
+
+  async function handleSaveAndPrint() {
+    if (!jcForm.equipment_id) { setJcError('Equipment is required'); return }
+    setJcSaving(true)
+    setJcError('')
+    try {
+      const card = await createJobCard({
+        equipment_id: jcForm.equipment_id,
+        plant_id: jcForm.plant_id,
+        service_type: jcForm.service_type || null,
+        due_date: jcForm.due_date || null,
+        service_description: jcForm.service_description || null,
+        work_to_be_done: jcForm.work_to_be_done || null,
+        assigned_artisan: jcForm.assigned_artisan || null,
+        parts_required: jcForm.parts_required || null,
+        priority: jcForm.priority,
+        notes: jcForm.notes || null,
+      })
+      closeModal()
+      setManualResults([])
+      setManualSearch('')
+      printJobCard(card)
+      await Promise.all([loadDueEquipment(), loadJobCards(), loadActiveCards()])
+    } catch (e: any) {
+      setJcError(e?.response?.data?.detail || 'Failed to save job card')
+    } finally {
+      setJcSaving(false)
+    }
+  }
+
+  async function handleUpdateJobCard() {
+    if (!viewingCard) return
+    setJcSaving(true)
+    setJcError('')
+    try {
+      const updated = await updateJobCard(viewingCard.id, {
+        service_type: viewingCard.service_type,
+        due_date: viewingCard.due_date,
+        service_description: viewingCard.service_description,
+        work_to_be_done: viewingCard.work_to_be_done,
+        assigned_artisan: viewingCard.assigned_artisan,
+        parts_required: viewingCard.parts_required,
+        priority: viewingCard.priority,
+        notes: viewingCard.notes,
+        status: viewingCard.status,
+      })
+      setViewingCard(updated)
+      await loadJobCards()
+    } catch (e: any) {
+      setJcError(e?.response?.data?.detail || 'Failed to update job card')
+    } finally {
+      setJcSaving(false)
+    }
+  }
+
+  async function handleCompleteJobCard() {
+    if (!viewingCard || !completeForm.service_date) {
+      setJcError('Service date is required')
+      return
+    }
+    setCompleting(true)
+    setJcError('')
+    try {
+      await completeJobCard(viewingCard.id, {
+        service_date: completeForm.service_date,
+        performed_by: completeForm.performed_by || null,
+        work_done: completeForm.work_done || null,
+        parts_used: completeForm.parts_used || null,
+        completion_notes: completeForm.completion_notes || null,
+      })
+      closeModal()
+      await Promise.all([loadDueEquipment(), loadJobCards(), loadActiveCards()])
+    } catch (e: any) {
+      setJcError(e?.response?.data?.detail || 'Failed to complete job card')
+    } finally {
+      setCompleting(false)
+    }
+  }
+
+  async function handleDeleteJobCard(id: number) {
+    if (!confirm('Delete this job card?')) return
+    try {
+      await deleteJobCard(id)
+      await Promise.all([loadJobCards(), loadActiveCards()])
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || 'Failed to delete job card')
+    }
+  }
+
+  const overdueCount = dueEquipment.filter((e) => e.service_status === 'Overdue').length
+  const dueWithin7Count = dueEquipment.filter((e) => e.service_status !== 'Overdue').length
+  const openCardCount = Object.keys(activeCardsByEquipmentId).length
+
+  if (loading) {
+    return (
+      <div className="flex h-48 items-center justify-center">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {error && (
+        <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600 flex items-center justify-between">
+          {error}
+          <button onClick={() => setError('')}><X className="h-4 w-4" /></button>
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-gray-200">
+        {([
+          { key: 'due', label: 'Service Due / Job Cards', icon: ClipboardList },
+          { key: 'history', label: 'Service History', icon: History },
+        ] as const).map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === key
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <Icon className="h-4 w-4" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Tab 1: Service Due / Job Cards ── */}
+      {activeTab === 'due' && (
+        <div className="space-y-6">
+          {/* Summary banners */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="card flex items-center gap-4 py-4">
+              <div className="rounded-full bg-red-100 p-3"><AlertTriangle className="h-5 w-5 text-red-600" /></div>
+              <div>
+                <p className="text-2xl font-bold text-red-600">{overdueCount}</p>
+                <p className="text-xs text-gray-500">Overdue</p>
+              </div>
+            </div>
+            <div className="card flex items-center gap-4 py-4">
+              <div className="rounded-full bg-yellow-100 p-3"><AlertTriangle className="h-5 w-5 text-yellow-600" /></div>
+              <div>
+                <p className="text-2xl font-bold text-yellow-600">{dueWithin7Count}</p>
+                <p className="text-xs text-gray-500">Due within 7 days</p>
+              </div>
+            </div>
+            <div className="card flex items-center gap-4 py-4">
+              <div className="rounded-full bg-blue-100 p-3"><ClipboardList className="h-5 w-5 text-blue-600" /></div>
+              <div>
+                <p className="text-2xl font-bold text-blue-600">{openCardCount}</p>
+                <p className="text-xs text-gray-500">Open Job Cards</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Due Equipment table */}
+          <div className="card space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="font-semibold text-gray-700">Equipment Due for Service</h2>
+              <div className="flex gap-2 flex-wrap">
+                <input
+                  type="text"
+                  className="input text-sm py-1.5 w-48"
+                  placeholder="Filter by name…"
+                  value={dueSearch}
+                  onChange={(e) => setDueSearch(e.target.value)}
+                />
+                <select
+                  className="input text-sm py-1.5 w-44"
+                  value={duePlantId ?? ''}
+                  onChange={(e) => setDuePlantId(e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">All plants</option>
+                  {plants.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {dueLoading ? (
+              <div className="flex h-24 items-center justify-center"><LoadingSpinner /></div>
+            ) : (
+              <div className="table-container">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Equipment</th>
+                      <th>Plant</th>
+                      <th>Service Type</th>
+                      <th>Last Service</th>
+                      <th>Next Due</th>
+                      <th>Status</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dueEquipment.map((eq) => (
+                      <tr key={eq.id}>
+                        <td>
+                          <div className="font-medium">{eq.equipment_name}</div>
+                          {eq.equipment_code && <div className="text-xs font-mono text-gray-400">{eq.equipment_code}</div>}
+                        </td>
+                        <td className="text-gray-500">{eq.plant_name ?? '—'}</td>
+                        <td className="text-sm text-gray-600">{eq.service_type ?? '—'}</td>
+                        <td className="text-sm text-gray-600">{eq.last_service_date ?? '—'}</td>
+                        <td className="text-sm text-gray-600">{eq.next_service_date ?? '—'}</td>
+                        <td><ServiceStatusBadge status={eq.service_status} /></td>
+                        <td>
+                          {activeCardsByEquipmentId[eq.id] ? (
+                            <button
+                              onClick={() => openViewModalWithComplete(activeCardsByEquipmentId[eq.id])}
+                              className="btn-sm flex items-center gap-1.5 rounded px-2.5 py-1.5 text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition-colors"
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                              Mark Complete
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => openCreateModal(eq)}
+                              className="btn-primary btn-sm flex items-center gap-1.5"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                              Service
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {dueEquipment.length === 0 && (
+                      <tr><td colSpan={7} className="text-center text-gray-400 py-8">No equipment overdue or due within 7 days</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Manual equipment search */}
+          <div className="card space-y-4">
+            <h2 className="font-semibold text-gray-700">Create Job Card for Any Equipment</h2>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                className="input text-sm flex-1"
+                placeholder="Search equipment by name…"
+                value={manualSearch}
+                onChange={(e) => setManualSearch(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleManualSearch()}
+              />
+              <button onClick={handleManualSearch} className="btn-secondary btn-sm flex items-center gap-1.5" disabled={manualSearching}>
+                {manualSearching ? <LoadingSpinner size="sm" /> : <Search className="h-4 w-4" />}
+                Search
+              </button>
+            </div>
+            {manualResults.length > 0 && (
+              <div className="table-container">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Equipment</th>
+                      <th>Plant</th>
+                      <th>Service Status</th>
+                      <th>Next Due</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {manualResults.map((eq) => (
+                      <tr key={eq.id}>
+                        <td>
+                          <div className="font-medium">{eq.equipment_name}</div>
+                          {eq.equipment_code && <div className="text-xs font-mono text-gray-400">{eq.equipment_code}</div>}
+                        </td>
+                        <td className="text-gray-500">{eq.plant_name ?? '—'}</td>
+                        <td><ServiceStatusBadge status={eq.service_status ?? 'Not Scheduled'} /></td>
+                        <td className="text-sm text-gray-600">{eq.next_service_date ?? '—'}</td>
+                        <td>
+                          {activeCardsByEquipmentId[eq.id] ? (
+                            <button
+                              onClick={() => openViewModalWithComplete(activeCardsByEquipmentId[eq.id])}
+                              className="btn-sm flex items-center gap-1.5 rounded px-2.5 py-1.5 text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition-colors"
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                              Mark Complete
+                            </button>
+                          ) : (
+                            <button onClick={() => openCreateModal(eq)} className="btn-primary btn-sm flex items-center gap-1.5">
+                              <Plus className="h-3.5 w-3.5" />
+                              Service
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Open job cards table */}
+          <div className="card space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="font-semibold text-gray-700">Job Cards ({jobCardsTotal})</h2>
+              <div className="flex gap-2 flex-wrap">
+                <input
+                  type="text"
+                  className="input text-sm py-1.5 w-48"
+                  placeholder="Search job cards…"
+                  value={jobCardSearch}
+                  onChange={(e) => setJobCardSearch(e.target.value)}
+                />
+                <select
+                  className="input text-sm py-1.5 w-36"
+                  value={jobCardStatus}
+                  onChange={(e) => setJobCardStatus(e.target.value)}
+                >
+                  <option value="">All statuses</option>
+                  <option value="open">Open</option>
+                  <option value="in-progress">In Progress</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </div>
+            </div>
+            <div className="table-container">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Job Card #</th>
+                    <th>Equipment</th>
+                    <th>Plant</th>
+                    <th>Artisan</th>
+                    <th>Priority</th>
+                    <th>Due Date</th>
+                    <th>Status</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {jobCards.map((jc) => (
+                    <tr key={jc.id} className="cursor-pointer" onClick={() => openViewModal(jc)}>
+                      <td className="font-mono text-xs text-gray-600">{jc.job_card_number}</td>
+                      <td className="font-medium">{jc.equipment_name ?? '—'}</td>
+                      <td className="text-gray-500">{jc.plant_name ?? '—'}</td>
+                      <td className="text-sm text-gray-600">{jc.assigned_artisan ?? '—'}</td>
+                      <td><PriorityBadge priority={jc.priority} /></td>
+                      <td className="text-sm text-gray-600">{jc.due_date ?? '—'}</td>
+                      <td><StatusBadge status={jc.status} /></td>
+                      <td>
+                        <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                          <button onClick={() => { printJobCard(jc) }} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Print">
+                            <Printer className="h-3.5 w-3.5" />
+                          </button>
+                          {jc.status !== 'completed' && (
+                            <button onClick={() => handleDeleteJobCard(jc.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Delete">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {jobCards.length === 0 && (
+                    <tr><td colSpan={8} className="text-center text-gray-400 py-8">No job cards found</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Tab 2: Service History ── */}
+      {activeTab === 'history' && (
+        <div className="space-y-4">
+          {/* Filters */}
+          <div className="card">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="space-y-1">
+                <label className="label">Equipment</label>
+                <input type="text" className="input" placeholder="Search by name…" value={histSearch} onChange={(e) => setHistSearch(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <label className="label">Plant</label>
+                <select className="input" value={histPlantId ?? ''} onChange={(e) => setHistPlantId(e.target.value ? Number(e.target.value) : null)}>
+                  <option value="">All plants</option>
+                  {plants.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="label">Service Type</label>
+                <input type="text" className="input" placeholder="Filter…" value={histServiceType} onChange={(e) => setHistServiceType(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <label className="label">Date From</label>
+                <input type="date" className="input" value={histDateFrom} onChange={(e) => setHistDateFrom(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <label className="label">Date To</label>
+                <input type="date" className="input" value={histDateTo} onChange={(e) => setHistDateTo(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <label className="label">Artisan</label>
+                <input type="text" className="input" placeholder="Filter…" value={histArtisan} onChange={(e) => setHistArtisan(e.target.value)} />
+              </div>
+            </div>
+            <div className="mt-3 flex gap-2">
+              <button onClick={() => { setHistPage(0); loadHistory() }} className="btn-primary btn-sm">
+                <Search className="h-3.5 w-3.5" />
+                Apply Filters
+              </button>
+              <button onClick={() => {
+                setHistSearch(''); setHistPlantId(null); setHistDateFrom(''); setHistDateTo(''); setHistArtisan(''); setHistServiceType(''); setHistPage(0)
+              }} className="btn-secondary btn-sm">Clear</button>
+            </div>
+          </div>
+
+          {histLoading ? (
+            <div className="flex h-24 items-center justify-center"><LoadingSpinner /></div>
+          ) : (
+            <>
+              <div className="table-container">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Equipment</th>
+                      <th>Plant</th>
+                      <th>Service Type</th>
+                      <th>Performed By</th>
+                      <th>Work Done</th>
+                      <th>Parts Used</th>
+                      <th>Job Card</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {histRecords.map((r) => (
+                      <tr key={r.id}>
+                        <td className="text-sm text-gray-600 whitespace-nowrap">{r.service_date}</td>
+                        <td>
+                          <div className="font-medium">{r.equipment_name ?? '—'}</div>
+                          {r.equipment_code && <div className="text-xs font-mono text-gray-400">{r.equipment_code}</div>}
+                        </td>
+                        <td className="text-gray-500">{r.plant_name ?? '—'}</td>
+                        <td className="text-sm text-gray-600">{r.service_type ?? '—'}</td>
+                        <td className="text-sm text-gray-600">{r.performed_by ?? '—'}</td>
+                        <td className="text-sm text-gray-600 max-w-[200px] truncate">{r.work_done ?? r.notes ?? '—'}</td>
+                        <td className="text-sm text-gray-600">{r.parts_used ?? '—'}</td>
+                        <td>
+                          {r.job_card_number ? (
+                            <span className="font-mono text-xs text-blue-600">{r.job_card_number}</span>
+                          ) : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                    {histRecords.length === 0 && (
+                      <tr><td colSpan={8} className="text-center text-gray-400 py-8">No service history records found</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {histTotal > HIST_PAGE_SIZE && (
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-gray-500">
+                    Showing {histPage * HIST_PAGE_SIZE + 1}–{Math.min((histPage + 1) * HIST_PAGE_SIZE, histTotal)} of {histTotal}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button className="btn-secondary btn-sm" disabled={histPage === 0} onClick={() => setHistPage((p) => Math.max(0, p - 1))}>
+                      <ChevronLeft className="h-4 w-4" />Previous
+                    </button>
+                    <span className="text-sm text-gray-600">Page {histPage + 1} of {Math.ceil(histTotal / HIST_PAGE_SIZE)}</span>
+                    <button className="btn-secondary btn-sm" disabled={histPage >= Math.ceil(histTotal / HIST_PAGE_SIZE) - 1} onClick={() => setHistPage((p) => p + 1)}>
+                      Next<ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── Create Job Card Modal ── */}
+      {jcModal === 'create' && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto" onClick={closeModal}>
+          <div className="card w-full max-w-2xl my-8 space-y-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-800">New Service Job Card</h2>
+              <button onClick={closeModal} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {jcError && (
+              <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600">{jcError}</div>
+            )}
+
+            <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-2 text-sm text-blue-700">
+              <span className="font-medium">Equipment:</span> {jcFormEquipmentLabel}
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1">
+                <label className="label">Service Type</label>
+                <input type="text" className="input" value={jcForm.service_type} onChange={(e) => setJcForm((f) => ({ ...f, service_type: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <label className="label">Due Date</label>
+                <input type="date" className="input" value={jcForm.due_date} onChange={(e) => setJcForm((f) => ({ ...f, due_date: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <label className="label">Assigned Artisan</label>
+                <input type="text" className="input" value={jcForm.assigned_artisan} onChange={(e) => setJcForm((f) => ({ ...f, assigned_artisan: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <label className="label">Priority</label>
+                <select className="input" value={jcForm.priority} onChange={(e) => setJcForm((f) => ({ ...f, priority: e.target.value }))}>
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="critical">Critical</option>
+                </select>
+              </div>
+              <div className="sm:col-span-2 space-y-1">
+                <label className="label">Service Description</label>
+                <textarea className="input resize-none" rows={2} value={jcForm.service_description} onChange={(e) => setJcForm((f) => ({ ...f, service_description: e.target.value }))} />
+              </div>
+              <div className="sm:col-span-2 space-y-1">
+                <label className="label">Work To Be Done</label>
+                <textarea className="input resize-none" rows={2} value={jcForm.work_to_be_done} onChange={(e) => setJcForm((f) => ({ ...f, work_to_be_done: e.target.value }))} />
+              </div>
+              <div className="sm:col-span-2 space-y-1">
+                <label className="label">Parts Required</label>
+                <textarea className="input resize-none" rows={2} value={jcForm.parts_required} onChange={(e) => setJcForm((f) => ({ ...f, parts_required: e.target.value }))} />
+              </div>
+              <div className="sm:col-span-2 space-y-1">
+                <label className="label">Notes</label>
+                <textarea className="input resize-none" rows={2} value={jcForm.notes} onChange={(e) => setJcForm((f) => ({ ...f, notes: e.target.value }))} />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2 flex-wrap">
+              <button onClick={handleSaveJobCard} disabled={jcSaving} className="btn-primary flex items-center gap-1.5">
+                {jcSaving ? <LoadingSpinner size="sm" /> : <Check className="h-4 w-4" />}
+                Save
+              </button>
+              <button onClick={handleSaveAndPrint} disabled={jcSaving} className="btn-secondary flex items-center gap-1.5">
+                <Printer className="h-4 w-4" />
+                Save &amp; Print
+              </button>
+              <button onClick={closeModal} className="btn-secondary">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── View / Edit Job Card Modal ── */}
+      {jcModal === 'view' && viewingCard && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto" onClick={closeModal}>
+          <div className="card w-full max-w-2xl my-8 space-y-5" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-800">{viewingCard.job_card_number}</h2>
+                <div className="flex items-center gap-2 mt-1">
+                  <StatusBadge status={viewingCard.status} />
+                  <PriorityBadge priority={viewingCard.priority} />
+                </div>
+              </div>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <button onClick={() => printJobCard(viewingCard)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Print">
+                  <Printer className="h-4 w-4" />
+                </button>
+                <button onClick={closeModal} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors ml-1">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {jcError && (
+              <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600">{jcError}</div>
+            )}
+
+            {/* Info */}
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3 border-t pt-4 sm:grid-cols-3">
+              {[
+                ['Equipment', `${viewingCard.equipment_name ?? '—'}${viewingCard.equipment_code ? ' (' + viewingCard.equipment_code + ')' : ''}`],
+                ['Plant', viewingCard.plant_name ?? '—'],
+                ['Created By', viewingCard.created_by_user_name ?? '—'],
+                ['Due Date', viewingCard.due_date ?? '—'],
+                ['Completed', viewingCard.completed_date ?? '—'],
+              ].map(([label, value]) => (
+                <div key={label}>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</p>
+                  <p className="mt-1 text-sm text-gray-800">{value}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Editable fields (when open/in-progress) */}
+            {viewingCard.status !== 'completed' ? (
+              <div className="space-y-4 border-t pt-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="label">Service Type</label>
+                    <input type="text" className="input" value={viewingCard.service_type ?? ''} onChange={(e) => setViewingCard((c) => c ? { ...c, service_type: e.target.value } : c)} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="label">Due Date</label>
+                    <input type="date" className="input" value={viewingCard.due_date ?? ''} onChange={(e) => setViewingCard((c) => c ? { ...c, due_date: e.target.value } : c)} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="label">Assigned Artisan</label>
+                    <input type="text" className="input" value={viewingCard.assigned_artisan ?? ''} onChange={(e) => setViewingCard((c) => c ? { ...c, assigned_artisan: e.target.value } : c)} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="label">Priority</label>
+                    <select className="input" value={viewingCard.priority} onChange={(e) => setViewingCard((c) => c ? { ...c, priority: e.target.value } : c)}>
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                      <option value="critical">Critical</option>
+                    </select>
+                  </div>
+                  <div className="sm:col-span-2 space-y-1">
+                    <label className="label">Status</label>
+                    <select className="input" value={viewingCard.status} onChange={(e) => setViewingCard((c) => c ? { ...c, status: e.target.value } : c)}>
+                      <option value="open">Open</option>
+                      <option value="in-progress">In Progress</option>
+                    </select>
+                  </div>
+                  <div className="sm:col-span-2 space-y-1">
+                    <label className="label">Work To Be Done</label>
+                    <textarea className="input resize-none" rows={2} value={viewingCard.work_to_be_done ?? ''} onChange={(e) => setViewingCard((c) => c ? { ...c, work_to_be_done: e.target.value } : c)} />
+                  </div>
+                  <div className="sm:col-span-2 space-y-1">
+                    <label className="label">Parts Required</label>
+                    <textarea className="input resize-none" rows={2} value={viewingCard.parts_required ?? ''} onChange={(e) => setViewingCard((c) => c ? { ...c, parts_required: e.target.value } : c)} />
+                  </div>
+                  <div className="sm:col-span-2 space-y-1">
+                    <label className="label">Notes</label>
+                    <textarea className="input resize-none" rows={2} value={viewingCard.notes ?? ''} onChange={(e) => setViewingCard((c) => c ? { ...c, notes: e.target.value } : c)} />
+                  </div>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  <button onClick={handleUpdateJobCard} disabled={jcSaving} className="btn-secondary btn-sm flex items-center gap-1.5">
+                    {jcSaving ? <LoadingSpinner size="sm" /> : <Check className="h-4 w-4" />}
+                    Save Changes
+                  </button>
+                  {!showCompleteForm && (
+                    <button onClick={() => setShowCompleteForm(true)} className="btn-primary btn-sm flex items-center gap-1.5">
+                      <Check className="h-4 w-4" />
+                      Mark as Completed
+                    </button>
+                  )}
+                </div>
+
+                {/* Complete form */}
+                {showCompleteForm && (
+                  <div className="space-y-4 rounded-lg bg-green-50 border border-green-200 p-4">
+                    <h3 className="text-sm font-semibold text-green-800">Complete Service</h3>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <label className="label">Service Date *</label>
+                        <input type="date" className="input" value={completeForm.service_date} onChange={(e) => setCompleteForm((f) => ({ ...f, service_date: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="label">Performed By</label>
+                        <input type="text" className="input" value={completeForm.performed_by} onChange={(e) => setCompleteForm((f) => ({ ...f, performed_by: e.target.value }))} />
+                      </div>
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className="label">Work Done</label>
+                        <textarea className="input resize-none" rows={2} value={completeForm.work_done} onChange={(e) => setCompleteForm((f) => ({ ...f, work_done: e.target.value }))} />
+                      </div>
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className="label">Parts Used</label>
+                        <textarea className="input resize-none" rows={2} value={completeForm.parts_used} onChange={(e) => setCompleteForm((f) => ({ ...f, parts_used: e.target.value }))} />
+                      </div>
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className="label">Completion Notes</label>
+                        <textarea className="input resize-none" rows={2} value={completeForm.completion_notes} onChange={(e) => setCompleteForm((f) => ({ ...f, completion_notes: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={handleCompleteJobCard} disabled={completing} className="btn-primary btn-sm flex items-center gap-1.5">
+                        {completing ? <LoadingSpinner size="sm" /> : <Check className="h-4 w-4" />}
+                        Confirm Complete
+                      </button>
+                      <button onClick={() => setShowCompleteForm(false)} className="btn-secondary btn-sm">Cancel</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Read-only completed view */
+              <div className="space-y-3 border-t pt-4">
+                {[
+                  ['Service Type', viewingCard.service_type],
+                  ['Work To Be Done', viewingCard.work_to_be_done],
+                  ['Parts Required', viewingCard.parts_required],
+                  ['Notes', viewingCard.notes],
+                ].filter(([, v]) => v).map(([label, value]) => (
+                  <div key={label as string}>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label as string}</p>
+                    <p className="mt-1 text-sm text-gray-800 whitespace-pre-wrap">{value as string}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

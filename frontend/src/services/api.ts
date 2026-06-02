@@ -2,10 +2,13 @@ import axios from 'axios'
 import type {
   AuditLog,
   DashboardStats,
+  DueEquipment,
+  EnrichedServiceHistory,
   Equipment,
   EquipmentDetails,
   EquipmentGroup,
   FaultCategory,
+  JobCardsResponse,
   MaintenanceRecord,
   PartsReplacement,
   Plant,
@@ -13,6 +16,8 @@ import type {
   RecordsResponse,
   ServiceDashboardStats,
   ServiceHistory,
+  ServiceHistoryResponse,
+  ServiceJobCard,
   User,
 } from '../types'
 
@@ -138,13 +143,92 @@ export async function deleteEquipmentGroup(id: number): Promise<void> {
 // ── Service History ─────────────────────────────────────────────────────────
 
 export async function getServiceHistory(equipment_id: number): Promise<ServiceHistory[]> {
-  const res = await api.get<ServiceHistory[]>('/service-history/', { params: { equipment_id } })
+  const res = await api.get<{ total: number; records: ServiceHistory[] }>('/service-history/', { params: { equipment_id } })
+  return res.data.records
+}
+
+export async function getEnrichedServiceHistory(params: {
+  equipment_id?: number
+  plant_id?: number
+  date_from?: string
+  date_to?: string
+  artisan?: string
+  service_type?: string
+  search?: string
+  skip?: number
+  limit?: number
+}): Promise<ServiceHistoryResponse> {
+  const res = await api.get<ServiceHistoryResponse>('/service-history/', { params })
   return res.data
 }
 
 export async function createServiceHistory(data: Partial<ServiceHistory>): Promise<ServiceHistory> {
   const res = await api.post<ServiceHistory>('/service-history/', data)
   return res.data
+}
+
+// ── Service Job Cards ────────────────────────────────────────────────────────
+
+export async function getDueEquipment(params?: {
+  search?: string
+  plant_id?: number
+}): Promise<DueEquipment[]> {
+  const res = await api.get<DueEquipment[]>('/job-cards/due-equipment', { params })
+  return res.data
+}
+
+export async function searchAllEquipment(search: string, plant_id?: number): Promise<DueEquipment[]> {
+  const res = await api.get<DueEquipment[]>('/job-cards/search-equipment', { params: { search, plant_id } })
+  return res.data
+}
+
+export async function getJobCards(params?: {
+  status?: string
+  plant_id?: number
+  equipment_id?: number
+  priority?: string
+  search?: string
+  skip?: number
+  limit?: number
+}): Promise<JobCardsResponse> {
+  const res = await api.get<JobCardsResponse>('/job-cards/', { params })
+  return res.data
+}
+
+export async function createJobCard(data: {
+  equipment_id: number
+  plant_id?: number | null
+  service_type?: string | null
+  due_date?: string | null
+  service_description?: string | null
+  work_to_be_done?: string | null
+  assigned_artisan?: string | null
+  parts_required?: string | null
+  priority?: string
+  notes?: string | null
+}): Promise<ServiceJobCard> {
+  const res = await api.post<ServiceJobCard>('/job-cards/', data)
+  return res.data
+}
+
+export async function updateJobCard(id: number, data: Partial<ServiceJobCard>): Promise<ServiceJobCard> {
+  const res = await api.put<ServiceJobCard>(`/job-cards/${id}`, data)
+  return res.data
+}
+
+export async function completeJobCard(id: number, data: {
+  service_date: string
+  performed_by?: string | null
+  work_done?: string | null
+  parts_used?: string | null
+  completion_notes?: string | null
+}): Promise<ServiceJobCard> {
+  const res = await api.post<ServiceJobCard>(`/job-cards/${id}/complete`, data)
+  return res.data
+}
+
+export async function deleteJobCard(id: number): Promise<void> {
+  await api.delete(`/job-cards/${id}`)
 }
 
 // ── Parts Replacements ───────────────────────────────────────────────────────

@@ -14,6 +14,7 @@ from app.routers import (
     dashboard,
     service_dashboard,
     service_history,
+    service_job_cards,
     parts_replacements,
     logs,
 )
@@ -59,6 +60,18 @@ def ensure_schema_updates():
         if "description" not in equipment_columns:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE equipment ADD COLUMN description TEXT"))
+
+    if "service_history" in tables:
+        sh_columns = {c["name"] for c in inspector.get_columns("service_history")}
+        if "work_done" not in sh_columns:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE service_history ADD COLUMN work_done TEXT"))
+        if "parts_used" not in sh_columns:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE service_history ADD COLUMN parts_used TEXT"))
+        if "job_card_id" not in sh_columns:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE service_history ADD COLUMN job_card_id INTEGER REFERENCES service_job_cards(id)"))
 
     if "maintenance_records" not in tables:
         return
@@ -123,6 +136,7 @@ app.include_router(import_excel.router, prefix="/api/import", tags=["Import"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
 app.include_router(service_dashboard.router, prefix="/api/service-dashboard", tags=["Service Dashboard"])
 app.include_router(service_history.router, prefix="/api/service-history", tags=["Service History"])
+app.include_router(service_job_cards.router, prefix="/api/job-cards", tags=["Service Job Cards"])
 app.include_router(parts_replacements.router, prefix="/api/parts-replacements", tags=["Parts Replacements"])
 app.include_router(logs.router, prefix="/api/logs", tags=["Audit Logs"])
 

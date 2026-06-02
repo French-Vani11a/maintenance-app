@@ -178,6 +178,72 @@ export interface RecordFilters {
   search?: string
 }
 
+export interface DueEquipment {
+  id: number
+  equipment_name: string
+  equipment_code: string | null
+  plant_id: number | null
+  plant_name: string | null
+  service_type: string | null
+  last_service_date: string | null
+  next_service_date: string | null
+  service_status: string
+  service_interval_days: number | null
+  manufacturer: string | null
+  model_number: string | null
+}
+
+export interface ServiceJobCard {
+  id: number
+  job_card_number: string
+  equipment_id: number
+  equipment_name: string | null
+  equipment_code: string | null
+  plant_id: number | null
+  plant_name: string | null
+  service_type: string | null
+  due_date: string | null
+  service_description: string | null
+  work_to_be_done: string | null
+  assigned_artisan: string | null
+  parts_required: string | null
+  priority: string
+  notes: string | null
+  status: string
+  completed_date: string | null
+  created_by_user_id: number | null
+  created_by_user_name: string | null
+  created_at: string | null
+}
+
+export interface EnrichedServiceHistory {
+  id: number
+  equipment_id: number
+  equipment_name: string | null
+  equipment_code: string | null
+  plant_id: number | null
+  plant_name: string | null
+  service_date: string
+  service_type: string | null
+  performed_by: string | null
+  notes: string | null
+  work_done: string | null
+  parts_used: string | null
+  job_card_id: number | null
+  job_card_number: string | null
+  created_at: string | null
+}
+
+export interface ServiceHistoryResponse {
+  total: number
+  records: EnrichedServiceHistory[]
+}
+
+export interface JobCardsResponse {
+  total: number
+  job_cards: ServiceJobCard[]
+}
+
 export interface AuditLog {
   id: number
   user_id: number
