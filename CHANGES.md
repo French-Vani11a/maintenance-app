@@ -2,6 +2,65 @@
 
 ---
 
+## Equipment Details Modal — Service Button
+
+**`frontend/src/pages/EquipmentManagement.tsx`**
+
+### New imports
+- `completeJobCard`, `getJobCards` added to API imports
+- `Zap` added to lucide-react imports
+- `ServiceJobCard` added to type imports
+
+### New state
+| State | Type | Purpose |
+|-------|------|---------|
+| `equipmentActiveCard` | `ServiceJobCard \| null` | Non-completed job card for the currently open equipment |
+| `completeForm` | object | Completion fields: `service_date`, `performed_by`, `work_done`, `parts_used`, `completion_notes` |
+| `completing` | boolean | Loading flag for the complete action |
+
+### New functions
+
+**`loadEquipmentActiveCard(equipmentId)`**
+- Calls `getJobCards({ equipment_id, limit: 20 })`, picks the first non-completed card
+- Sets `equipmentActiveCard` to that card or `null`
+
+**`handleCompleteFromModal()`**
+- Validates `service_date` is provided
+- Calls `completeJobCard` with completion data
+- Re-fetches equipment details (`getEquipmentDetails`) so last/next service dates and service status update live in the modal
+- Re-runs `loadEquipmentActiveCard` to clear the active card and revert the button
+- Refreshes the equipment list table
+- Shows "Service completed and history recorded." success banner
+
+### Updated `openDetailsModal`
+- Now calls `getEquipmentDetails` and `loadEquipmentActiveCard` in parallel (`Promise.all`) so the active card is known as soon as the modal opens
+
+### Updated `handleCreateJobCard`
+- After successfully creating a job card, calls `loadEquipmentActiveCard` so the header button immediately switches from Zap → Mark Complete
+
+### Updated `useEffect` cleanup (watches `detailsModal`)
+- Now also resets `equipmentActiveCard`, `completeForm`, and `completing` when the modal closes
+
+### Modal header button (smart toggle)
+- **`equipmentActiveCard` is `null`** → Zap icon button. Clicking pre-fills `service_type` from the equipment's own service type and `due_date` from `next_service_date`, then toggles the create form
+- **`equipmentActiveCard` exists** → green **Mark Complete** button (shows job card number as tooltip). Clicking opens the completion form directly (`showServiceForm = true`)
+- Both buttons hidden when the edit form is active (`modalEditing`)
+
+### Service form section (smart create / complete)
+Renders below the info grid, above the history tables:
+
+**Create form** (no active card) — fields: Service Type (pre-filled from equipment service type), Due Date (pre-filled from `next_service_date`), Assigned Artisan, Priority, Service Description, Work To Be Done, Parts Required, Notes. Actions: **Save Job Card** / **Cancel**
+
+**Complete form** (active card exists) — header shows job card number. Fields: Service Date (required), Performed By, Work Done, Parts Used, Completion Notes. Actions: **Confirm Complete** / **Cancel**
+
+### Success banner
+- Green banner appears after both create and complete actions
+- Dismissed with X button or clears on next action
+
+---
+
+---
+
 ## Service Now — Smart Service Button (Equipment Row)
 
 **`frontend/src/pages/ServiceNow.tsx`**
