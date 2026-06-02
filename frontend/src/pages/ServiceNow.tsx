@@ -456,6 +456,18 @@ export default function ServiceNow() {
         </div>
       )}
 
+      {overdueCount > 0 && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5" />
+            <div>
+              <div className="font-semibold">{overdueCount} overdue service{overdueCount !== 1 ? 's' : ''}</div>
+              <div className="text-xs text-red-700/80">Please review equipment that is past due.</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200">
         {([
