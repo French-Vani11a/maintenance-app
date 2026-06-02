@@ -3,12 +3,16 @@ import type {
   AuditLog,
   DashboardStats,
   Equipment,
+  EquipmentDetails,
   EquipmentGroup,
   FaultCategory,
   MaintenanceRecord,
+  PartsReplacement,
   Plant,
   RecordFilters,
   RecordsResponse,
+  ServiceDashboardStats,
+  ServiceHistory,
   User,
 } from '../types'
 
@@ -106,6 +110,11 @@ export async function deleteEquipment(id: number): Promise<void> {
   await api.delete(`/equipment/${id}`)
 }
 
+export async function getEquipmentDetails(id: number): Promise<EquipmentDetails> {
+  const res = await api.get<EquipmentDetails>(`/equipment/${id}/details`)
+  return res.data
+}
+
 export async function getEquipmentGroups(plant_id?: number): Promise<EquipmentGroup[]> {
   const res = await api.get<EquipmentGroup[]>('/equipment/groups/', {
     params: plant_id ? { plant_id } : {},
@@ -126,7 +135,29 @@ export async function updateEquipmentGroup(id: number, data: Partial<EquipmentGr
 export async function deleteEquipmentGroup(id: number): Promise<void> {
   await api.delete(`/equipment/groups/${id}`)
 }
+// ── Service History ─────────────────────────────────────────────────────────
 
+export async function getServiceHistory(equipment_id: number): Promise<ServiceHistory[]> {
+  const res = await api.get<ServiceHistory[]>('/service-history/', { params: { equipment_id } })
+  return res.data
+}
+
+export async function createServiceHistory(data: Partial<ServiceHistory>): Promise<ServiceHistory> {
+  const res = await api.post<ServiceHistory>('/service-history/', data)
+  return res.data
+}
+
+// ── Parts Replacements ───────────────────────────────────────────────────────
+
+export async function getPartsReplacements(equipment_id: number): Promise<PartsReplacement[]> {
+  const res = await api.get<PartsReplacement[]>('/parts-replacements/', { params: { equipment_id } })
+  return res.data
+}
+
+export async function createPartsReplacement(data: Partial<PartsReplacement>): Promise<PartsReplacement> {
+  const res = await api.post<PartsReplacement>('/parts-replacements/', data)
+  return res.data
+}
 // ── Users ───────────────────────────────────────────────────────────────────
 
 export async function getUsers(): Promise<User[]> {
@@ -218,6 +249,11 @@ export async function getDashboardStats(month?: number, year?: number): Promise<
   const res = await api.get<DashboardStats>('/dashboard/stats', {
     params: { month, year },
   })
+  return res.data
+}
+
+export async function getServiceDashboardStats(): Promise<ServiceDashboardStats> {
+  const res = await api.get<ServiceDashboardStats>('/service-dashboard/stats')
   return res.data
 }
 

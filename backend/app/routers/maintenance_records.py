@@ -129,6 +129,7 @@ def _build_query(
                 MaintenanceRecord.artisan_name.ilike(f"%{search}%"),
                 MaintenanceRecord.reporter_name.ilike(f"%{search}%"),
                 MaintenanceRecord.remarks.ilike(f"%{search}%"),
+                MaintenanceRecord.equipment.has(Equipment.equipment_name.ilike(f"%{search}%")),
             )
         )
     return query

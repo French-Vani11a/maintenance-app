@@ -1,21 +1,48 @@
 import { useEffect, useState } from 'react'
-import { Plus, Pencil, Trash2, Check, X, Building2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Pencil, Trash2, Check, X, Building2, ChevronLeft, ChevronRight, Eye } from 'lucide-react'
 import {
   createEquipment,
   createEquipmentGroup,
   createPlant,
+  createPartsReplacement,
+  createServiceHistory,
   deleteEquipment,
   deleteEquipmentGroup,
   deletePlant,
   getEquipment,
+  getEquipmentDetails,
   getEquipmentGroups,
+  getPartsReplacements,
   getPlants,
+  getServiceHistory,
   updateEquipment,
   updateEquipmentGroup,
   updatePlant,
 } from '../services/api'
-import type { Equipment, EquipmentGroup, Plant } from '../types'
+import type {
+  Equipment,
+  EquipmentDetails,
+  EquipmentGroup,
+  PartsReplacement,
+  Plant,
+  ServiceHistory,
+} from '../types'
 import LoadingSpinner from '../components/LoadingSpinner'
+
+const EMPTY_EQUIP_FORM = {
+  name: '',
+  code: '',
+  status: 'active',
+  plant_id: null as number | null,
+  equipment_group_id: null as number | null,
+  last_service_date: '',
+  service_interval_days: null as number | null,
+  service_type: '',
+  service_notes: '',
+  manufacturer: '',
+  model_number: '',
+  description: '',
+}
 
 export default function EquipmentManagement() {
   const [plants, setPlants] = useState<Plant[]>([])
@@ -46,22 +73,34 @@ export default function EquipmentManagement() {
   const [addingGroup, setAddingGroup] = useState(false)
 
   // Equipment edit state
-  const [editingEquip, setEditingEquip] = useState<number | null>(null)
-  const [equipForm, setEquipForm] = useState({
-    name: '',
-    code: '',
-    status: 'active',
-    plant_id: null as number | null,
-    equipment_group_id: null as number | null,
-  })
-  const [newEquipForm, setNewEquipForm] = useState({
-    name: '',
-    code: '',
-    status: 'active',
-    plant_id: null as number | null,
-    equipment_group_id: null as number | null,
-  })
+  const [equipForm, setEquipForm] = useState({ ...EMPTY_EQUIP_FORM })
+  const [newEquipForm, setNewEquipForm] = useState({ ...EMPTY_EQUIP_FORM })
   const [addingEquip, setAddingEquip] = useState(false)
+
+  // Equipment Details modal state
+  const [modalEditing, setModalEditing] = useState(false)
+
+  // Service panel state
+  const [activeEquipment, setActiveEquipment] = useState<number | null>(null)
+  const [serviceHistory, setServiceHistory] = useState<ServiceHistory[]>([])
+  const [partsReplacements, setPartsReplacements] = useState<PartsReplacement[]>([])
+  const [newHistoryEntry, setNewHistoryEntry] = useState({
+    service_date: '',
+    service_type: '',
+    performed_by: '',
+    notes: '',
+  })
+  const [newReplacementEntry, setNewReplacementEntry] = useState({
+    part_name: '',
+    interval_days: null as number | null,
+    last_replacement_date: '',
+    notes: '',
+  })
+  const [detailsError, setDetailsError] = useState('')
+
+  const [detailsModal, setDetailsModal] = useState<EquipmentDetails | null>(null)
+  const [detailsModalLoading, setDetailsModalLoading] = useState(false)
+  const [detailsModalError, setDetailsModalError] = useState('')
 
   useEffect(() => {
     Promise.all([getPlants(), getEquipmentGroups()])
@@ -96,6 +135,93 @@ export default function EquipmentManagement() {
   }
 
   const visibleEquipment = equipment
+
+  function calculateNextServiceDate(dateValue: string, interval: number | null) {
+    if (!dateValue || !interval) return ''
+    const parsed = new Date(dateValue)
+    if (Number.isNaN(parsed.getTime())) return ''
+    const nextDate = new Date(parsed)
+    nextDate.setDate(nextDate.getDate() + interval)
+    return nextDate.toISOString().slice(0, 10)
+  }
+
+  function calculateServiceStatus(dateValue: string, interval: number | null) {
+    if (!dateValue || !interval) return 'Not Scheduled'
+    const nextDate = calculateNextServiceDate(dateValue, interval)
+    if (!nextDate) return 'Not Scheduled'
+    const today = new Date().toISOString().slice(0, 10)
+    if (nextDate < today) return 'Overdue'
+    if (nextDate <= new Date(new Date().setDate(new Date().getDate() + 14)).toISOString().slice(0, 10)) return 'Due Soon'
+    return 'On Schedule'
+  }
+
+  async function loadServiceDetails(equipmentId: number) {
+    try {
+      setDetailsError('')
+      const [history, replacements] = await Promise.all([
+        getServiceHistory(equipmentId),
+        getPartsReplacements(equipmentId),
+      ])
+      setServiceHistory(history)
+      setPartsReplacements(replacements)
+    } catch (e: any) {
+      setDetailsError('Failed to load service details')
+    }
+  }
+
+  async function openServicePanel(equipmentId: number) {
+    setActiveEquipment(equipmentId)
+    await loadServiceDetails(equipmentId)
+  }
+
+  async function openDetailsModal(equipmentId: number) {
+    setDetailsModalLoading(true)
+    setDetailsModalError('')
+    setDetailsModal(null)
+    try {
+      const details = await getEquipmentDetails(equipmentId)
+      setDetailsModal(details)
+    } catch (e: any) {
+      setDetailsModalError(e?.response?.data?.detail || 'Failed to load equipment details')
+      setDetailsModal({} as EquipmentDetails)
+    } finally {
+      setDetailsModalLoading(false)
+    }
+  }
+
+  async function handleCreateServiceHistory() {
+    if (!activeEquipment || !newHistoryEntry.service_date) return
+    try {
+      await createServiceHistory({
+        equipment_id: activeEquipment,
+        service_date: newHistoryEntry.service_date,
+        service_type: newHistoryEntry.service_type || null,
+        performed_by: newHistoryEntry.performed_by || null,
+        notes: newHistoryEntry.notes || null,
+      })
+      setNewHistoryEntry({ service_date: '', service_type: '', performed_by: '', notes: '' })
+      await loadServiceDetails(activeEquipment)
+    } catch (e: any) {
+      setDetailsError(e?.response?.data?.detail || 'Failed to create service history')
+    }
+  }
+
+  async function handleCreatePartsReplacement() {
+    if (!activeEquipment || !newReplacementEntry.part_name) return
+    try {
+      await createPartsReplacement({
+        equipment_id: activeEquipment,
+        part_name: newReplacementEntry.part_name,
+        interval_days: newReplacementEntry.interval_days,
+        last_replacement_date: newReplacementEntry.last_replacement_date || null,
+        notes: newReplacementEntry.notes || null,
+      })
+      setNewReplacementEntry({ part_name: '', interval_days: null, last_replacement_date: '', notes: '' })
+      await loadServiceDetails(activeEquipment)
+    } catch (e: any) {
+      setDetailsError(e?.response?.data?.detail || 'Failed to create parts replacement')
+    }
+  }
 
   // ── Plants ────────────────────────────────────────────────────────────────
 
@@ -183,12 +309,17 @@ export default function EquipmentManagement() {
         plant_id: newEquipForm.plant_id,
         equipment_group_id: newEquipForm.equipment_group_id,
         status: newEquipForm.status,
+        last_service_date: newEquipForm.last_service_date || null,
+        service_interval_days: newEquipForm.service_interval_days,
+        service_type: newEquipForm.service_type || null,
+        service_notes: newEquipForm.service_notes || null,
+        manufacturer: newEquipForm.manufacturer || null,
+        model_number: newEquipForm.model_number || null,
+        description: newEquipForm.description || null,
       })
       loadEquipment()
       setNewEquipForm({
-        name: '',
-        code: '',
-        status: 'active',
+        ...EMPTY_EQUIP_FORM,
         plant_id: selectedPlant,
         equipment_group_id: selectedGroup,
       })
@@ -206,11 +337,20 @@ export default function EquipmentManagement() {
         plant_id: equipForm.plant_id,
         equipment_group_id: equipForm.equipment_group_id,
         status: equipForm.status,
+        last_service_date: equipForm.last_service_date || null,
+        service_interval_days: equipForm.service_interval_days,
+        service_type: equipForm.service_type || null,
+        service_notes: equipForm.service_notes || null,
+        manufacturer: equipForm.manufacturer || null,
+        model_number: equipForm.model_number || null,
+        description: equipForm.description || null,
       })
       loadEquipment()
-      setEditingEquip(null)
+      const updated = await getEquipmentDetails(id)
+      setDetailsModal(updated)
+      setModalEditing(false)
     } catch (e: any) {
-      setError(e?.response?.data?.detail || 'Failed to update equipment')
+      setDetailsModalError(e?.response?.data?.detail || 'Failed to update equipment')
     }
   }
 
@@ -224,6 +364,13 @@ export default function EquipmentManagement() {
     }
   }
 
+  function serviceStatusBadge(status?: string | null) {
+    if (status === 'Overdue') return 'bg-red-100 text-red-800'
+    if (status === 'Due Soon') return 'bg-yellow-100 text-yellow-800'
+    if (status === 'On Schedule') return 'bg-green-100 text-green-800'
+    return 'bg-gray-100 text-gray-600'
+  }
+
   if (loading) {
     return (
       <div className="flex h-48 items-center justify-center">
@@ -233,7 +380,7 @@ export default function EquipmentManagement() {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-6">
       {error && (
         <div className="col-span-full rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600 flex items-center justify-between">
           {error}
@@ -241,6 +388,7 @@ export default function EquipmentManagement() {
         </div>
       )}
 
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
       {/* Plants panel */}
       <div className="card space-y-3">
         <div className="flex items-center justify-between">
@@ -443,8 +591,10 @@ export default function EquipmentManagement() {
         </ul>
       </div>
 
+      </div>
+
       {/* Equipment table */}
-      <div className="lg:col-span-2 space-y-4">
+      <div className="col-span-full space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-gray-700">
             Equipment
@@ -501,16 +651,52 @@ export default function EquipmentManagement() {
         </div>
 
         {addingEquip && (
-          <div className="card flex items-end gap-3">
-            <div className="flex-1">
+          <div className="card grid gap-4 lg:grid-cols-3">
+            <div className="space-y-2">
               <label className="label">Name *</label>
               <input type="text" className="input" placeholder="Equipment name" value={newEquipForm.name} onChange={(e) => setNewEquipForm((f) => ({ ...f, name: e.target.value }))} />
             </div>
-            <div className="w-32">
+            <div className="space-y-2">
               <label className="label">Code</label>
               <input type="text" className="input" placeholder="Code" value={newEquipForm.code} onChange={(e) => setNewEquipForm((f) => ({ ...f, code: e.target.value }))} />
             </div>
-            <div className="w-44">
+            <div className="space-y-2">
+              <label className="label">Manufacturer</label>
+              <input type="text" className="input" placeholder="Manufacturer" value={newEquipForm.manufacturer} onChange={(e) => setNewEquipForm((f) => ({ ...f, manufacturer: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <label className="label">Model Number</label>
+              <input type="text" className="input" placeholder="Model number" value={newEquipForm.model_number} onChange={(e) => setNewEquipForm((f) => ({ ...f, model_number: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <label className="label">Service Type</label>
+              <input type="text" className="input" placeholder="Service type" value={newEquipForm.service_type} onChange={(e) => setNewEquipForm((f) => ({ ...f, service_type: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <label className="label">Last Service</label>
+              <input type="date" className="input" value={newEquipForm.last_service_date} onChange={(e) => setNewEquipForm((f) => ({ ...f, last_service_date: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <label className="label">Interval (days)</label>
+              <input
+                type="number"
+                min={1}
+                className="input"
+                value={newEquipForm.service_interval_days ?? ''}
+                onChange={(e) => setNewEquipForm((f) => ({ ...f, service_interval_days: e.target.value ? Number(e.target.value) : null }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="label">Service Notes</label>
+              <input
+                type="text"
+                className="input"
+                placeholder="Notes"
+                value={newEquipForm.service_notes}
+                onChange={(e) => setNewEquipForm((f) => ({ ...f, service_notes: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
               <label className="label">Plant</label>
               <select
                 className="input"
@@ -531,7 +717,7 @@ export default function EquipmentManagement() {
                 ))}
               </select>
             </div>
-            <div className="w-44">
+            <div className="space-y-2">
               <label className="label">Group</label>
               <select
                 className="input"
@@ -556,15 +742,35 @@ export default function EquipmentManagement() {
                   : null}
               </select>
             </div>
-            <div className="w-28">
+            <div className="space-y-2">
               <label className="label">Status</label>
               <select className="input" value={newEquipForm.status} onChange={(e) => setNewEquipForm((f) => ({ ...f, status: e.target.value }))}>
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
               </select>
             </div>
-            <button onClick={handleCreateEquip} className="btn-primary">Save</button>
-            <button onClick={() => setAddingEquip(false)} className="btn-secondary">Cancel</button>
+            <div className="space-y-2">
+              <label className="label">Next Service</label>
+              <div className="text-sm text-gray-700 py-2">{calculateNextServiceDate(newEquipForm.last_service_date, newEquipForm.service_interval_days) || '—'}</div>
+            </div>
+            <div className="space-y-2">
+              <label className="label">Service Status</label>
+              <div className="text-sm text-gray-700 py-2">{calculateServiceStatus(newEquipForm.last_service_date, newEquipForm.service_interval_days)}</div>
+            </div>
+            <div className="lg:col-span-3 space-y-2">
+              <label className="label">Description</label>
+              <textarea
+                className="input resize-none"
+                rows={2}
+                placeholder="Equipment description"
+                value={newEquipForm.description}
+                onChange={(e) => setNewEquipForm((f) => ({ ...f, description: e.target.value }))}
+              />
+            </div>
+            <div className="flex items-end gap-2">
+              <button onClick={handleCreateEquip} className="btn-primary">Save</button>
+              <button onClick={() => setAddingEquip(false)} className="btn-secondary">Cancel</button>
+            </div>
           </div>
         )}
 
@@ -574,115 +780,62 @@ export default function EquipmentManagement() {
               <tr>
                 <th>Equipment Name</th>
                 <th>Code</th>
+                <th>Manufacturer</th>
+                <th>Model No.</th>
                 <th>Plant</th>
                 <th>Group</th>
                 <th>Status</th>
+                <th>Last Service</th>
+                <th>Interval</th>
+                <th>Next Service</th>
+                <th>Service Status</th>
+                <th>Type</th>
+                <th>Notes</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {visibleEquipment.map((eq) => (
-                <tr key={eq.id}>
-                  {editingEquip === eq.id ? (
-                    <>
-                      <td><input type="text" className="input text-sm py-1" value={equipForm.name} onChange={(e) => setEquipForm((f) => ({ ...f, name: e.target.value }))} /></td>
-                      <td><input type="text" className="input text-sm py-1 w-24" value={equipForm.code} onChange={(e) => setEquipForm((f) => ({ ...f, code: e.target.value }))} /></td>
-                      <td>
-                        <select
-                          className="input text-sm py-1"
-                          value={equipForm.plant_id ?? ''}
-                          onChange={(e) =>
-                            setEquipForm((f) => ({
-                              ...f,
-                              plant_id: e.target.value ? Number(e.target.value) : null,
-                              equipment_group_id: null,
-                            }))
-                          }
-                        >
-                          <option value="">Unassigned</option>
-                          {plants.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        <select
-                          className="input text-sm py-1"
-                          value={equipForm.equipment_group_id ?? ''}
-                          disabled={!equipForm.plant_id}
-                          onChange={(e) =>
-                            setEquipForm((f) => ({
-                              ...f,
-                              equipment_group_id: e.target.value ? Number(e.target.value) : null,
-                            }))
-                          }
-                        >
-                          <option value="">No group</option>
-                          {equipForm.plant_id
-                            ? groups
-                                .filter((g) => g.plant_id === equipForm.plant_id)
-                                .map((g) => (
-                                  <option key={g.id} value={g.id}>
-                                    {g.name}
-                                  </option>
-                                ))
-                            : null}
-                        </select>
-                      </td>
-                      <td>
-                        <select className="input text-sm py-1 w-24" value={equipForm.status} onChange={(e) => setEquipForm((f) => ({ ...f, status: e.target.value }))}>
-                          <option value="active">Active</option>
-                          <option value="inactive">Inactive</option>
-                        </select>
-                      </td>
-                      <td>
-                        <div className="flex gap-1">
-                          <button onClick={() => handleUpdateEquip(eq.id)} className="text-green-600 hover:text-green-700"><Check className="h-4 w-4" /></button>
-                          <button onClick={() => setEditingEquip(null)} className="text-gray-400"><X className="h-4 w-4" /></button>
-                        </div>
-                      </td>
-                    </>
-                  ) : (
-                    <>
-                      <td className="font-medium">{eq.equipment_name}</td>
-                      <td className="font-mono text-xs text-gray-500">{eq.equipment_code || '—'}</td>
-                      <td className="text-gray-500">{eq.plant_name || '—'}</td>
-                      <td className="text-gray-500">{eq.equipment_group_name || '—'}</td>
-                      <td>
-                        <span className={`badge ${eq.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
-                          {eq.status}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => {
-                              setEditingEquip(eq.id)
-                              setEquipForm({
-                                name: eq.equipment_name,
-                                code: eq.equipment_code || '',
-                                status: eq.status,
-                                plant_id: eq.plant_id,
-                                equipment_group_id: eq.equipment_group_id,
-                              })
-                            }}
-                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                          ><Pencil className="h-3.5 w-3.5" /></button>
-                          <button
-                            onClick={() => handleDeleteEquip(eq.id)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                          ><Trash2 className="h-3.5 w-3.5" /></button>
-                        </div>
-                      </td>
-                    </>
-                  )}
+                <tr key={eq.id} className="cursor-pointer" onClick={() => openDetailsModal(eq.id)}>
+                  <td className="font-medium">{eq.equipment_name}</td>
+                  <td className="font-mono text-xs text-gray-500">{eq.equipment_code || '—'}</td>
+                  <td className="text-sm text-gray-600">{eq.manufacturer || '—'}</td>
+                  <td className="text-sm text-gray-600">{eq.model_number || '—'}</td>
+                  <td className="text-gray-500">{eq.plant_name || '—'}</td>
+                  <td className="text-gray-500">{eq.equipment_group_name || '—'}</td>
+                  <td>
+                    <span className={`badge ${eq.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                      {eq.status}
+                    </span>
+                  </td>
+                  <td className="text-sm text-gray-600">{eq.last_service_date || '—'}</td>
+                  <td className="text-sm text-gray-600">{eq.service_interval_days ?? '—'}</td>
+                  <td className="text-sm text-gray-600">{eq.next_service_date || '—'}</td>
+                  <td>
+                    <span className={`badge ${serviceStatusBadge(eq.service_status)}`}>
+                      {eq.service_status || 'Not Scheduled'}
+                    </span>
+                  </td>
+                  <td className="text-sm text-gray-600">{eq.service_type || '—'}</td>
+                  <td className="text-sm text-gray-600 max-w-[160px] truncate">{eq.service_notes || '—'}</td>
+                  <td>
+                    <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        title="View details"
+                        onClick={() => openDetailsModal(eq.id)}
+                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                      ><Eye className="h-3.5 w-3.5" /></button>
+                      <button
+                        onClick={() => openServicePanel(eq.id)}
+                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors text-xs"
+                      >History</button>
+                    </div>
+                  </td>
                 </tr>
               ))}
               {visibleEquipment.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="text-center text-gray-400 py-8">
+                  <td colSpan={14} className="text-center text-gray-400 py-8">
                     No equipment found
                   </td>
                 </tr>
@@ -720,7 +873,455 @@ export default function EquipmentManagement() {
             </div>
           </div>
         )}
+
+        {activeEquipment && (
+          <div className="space-y-4">
+            <div className="card space-y-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-700">Service Details</h2>
+                  <p className="text-sm text-gray-500">Equipment ID: {activeEquipment}</p>
+                </div>
+                <button
+                  className="btn-secondary btn-sm"
+                  onClick={() => setActiveEquipment(null)}
+                >
+                  Close
+                </button>
+              </div>
+              {detailsError && <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600">{detailsError}</div>}
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="card space-y-4">
+                  <h3 className="text-sm font-semibold text-gray-700">Service History</h3>
+                  <div className="space-y-3">
+                    {serviceHistory.length === 0 ? (
+                      <p className="text-xs text-gray-400">No completed service records yet.</p>
+                    ) : (
+                      <ul className="space-y-2 text-sm text-gray-700">
+                        {serviceHistory.map((record) => (
+                          <li key={record.id} className="rounded-lg border border-gray-200 p-3 bg-gray-50">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-medium">{record.service_type || 'Service'}</span>
+                              <span className="text-xs text-gray-500">{record.service_date}</span>
+                            </div>
+                            <p className="text-xs text-gray-500">Performed by: {record.performed_by || 'Unknown'}</p>
+                            <p className="text-xs text-gray-500 mt-1">{record.notes || 'No notes'}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <label className="label">New Service Date</label>
+                    <input
+                      type="date"
+                      className="input"
+                      value={newHistoryEntry.service_date}
+                      onChange={(e) => setNewHistoryEntry((f) => ({ ...f, service_date: e.target.value }))}
+                    />
+                    <label className="label">Service Type</label>
+                    <input
+                      type="text"
+                      className="input"
+                      value={newHistoryEntry.service_type}
+                      onChange={(e) => setNewHistoryEntry((f) => ({ ...f, service_type: e.target.value }))}
+                    />
+                    <label className="label">Performed By</label>
+                    <input
+                      type="text"
+                      className="input"
+                      value={newHistoryEntry.performed_by}
+                      onChange={(e) => setNewHistoryEntry((f) => ({ ...f, performed_by: e.target.value }))}
+                    />
+                    <label className="label">Notes</label>
+                    <input
+                      type="text"
+                      className="input"
+                      value={newHistoryEntry.notes}
+                      onChange={(e) => setNewHistoryEntry((f) => ({ ...f, notes: e.target.value }))}
+                    />
+                    <button onClick={handleCreateServiceHistory} className="btn-primary btn-sm">
+                      Add Service History
+                    </button>
+                  </div>
+                </div>
+                <div className="card space-y-4">
+                  <h3 className="text-sm font-semibold text-gray-700">Parts Replacement</h3>
+                  <div className="space-y-3">
+                    {partsReplacements.length === 0 ? (
+                      <p className="text-xs text-gray-400">No scheduled replacements yet.</p>
+                    ) : (
+                      <ul className="space-y-2 text-sm text-gray-700">
+                        {partsReplacements.map((replacement) => (
+                          <li key={replacement.id} className="rounded-lg border border-gray-200 p-3 bg-gray-50">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-medium">{replacement.part_name}</span>
+                              <span className="text-xs text-gray-500">{replacement.replacement_status || 'Not Scheduled'}</span>
+                            </div>
+                            <p className="text-xs text-gray-500">Interval: {replacement.interval_days ?? '—'} days</p>
+                            <p className="text-xs text-gray-500">Next: {replacement.next_replacement_date || '—'}</p>
+                            <p className="text-xs text-gray-500 mt-1">{replacement.notes || 'No notes'}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <label className="label">Part Name</label>
+                    <input
+                      type="text"
+                      className="input"
+                      value={newReplacementEntry.part_name}
+                      onChange={(e) => setNewReplacementEntry((f) => ({ ...f, part_name: e.target.value }))}
+                    />
+                    <label className="label">Interval (days)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      className="input"
+                      value={newReplacementEntry.interval_days ?? ''}
+                      onChange={(e) => setNewReplacementEntry((f) => ({ ...f, interval_days: e.target.value ? Number(e.target.value) : null }))}
+                    />
+                    <label className="label">Last Replacement</label>
+                    <input
+                      type="date"
+                      className="input"
+                      value={newReplacementEntry.last_replacement_date}
+                      onChange={(e) => setNewReplacementEntry((f) => ({ ...f, last_replacement_date: e.target.value }))}
+                    />
+                    <label className="label">Notes</label>
+                    <input
+                      type="text"
+                      className="input"
+                      value={newReplacementEntry.notes}
+                      onChange={(e) => setNewReplacementEntry((f) => ({ ...f, notes: e.target.value }))}
+                    />
+                    <button onClick={handleCreatePartsReplacement} className="btn-primary btn-sm">
+                      Add Replacement
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* ── Equipment Details Modal ─────────────────────────────────────────── */}
+      {(detailsModalLoading || detailsModal !== null) && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto"
+          onClick={() => { setDetailsModal(null); setModalEditing(false); setDetailsModalError('') }}
+        >
+          <div
+            className="card w-full max-w-4xl my-8 space-y-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {detailsModalLoading ? (
+              <div className="flex h-40 items-center justify-center">
+                <LoadingSpinner size="lg" />
+              </div>
+            ) : detailsModal && detailsModal.id ? (
+              <>
+                {/* Header */}
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-800">{detailsModal.equipment_name}</h2>
+                    {detailsModal.equipment_code && (
+                      <p className="text-sm font-mono text-gray-500 mt-0.5">{detailsModal.equipment_code}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {!modalEditing && (
+                      <>
+                        <button
+                          title="Edit equipment"
+                          onClick={() => {
+                            setDetailsModalError('')
+                            setEquipForm({
+                              name: detailsModal.equipment_name,
+                              code: detailsModal.equipment_code || '',
+                              status: detailsModal.status,
+                              plant_id: detailsModal.plant_id,
+                              equipment_group_id: detailsModal.equipment_group_id,
+                              last_service_date: detailsModal.last_service_date || '',
+                              service_interval_days: detailsModal.service_interval_days ?? null,
+                              service_type: detailsModal.service_type || '',
+                              service_notes: detailsModal.service_notes || '',
+                              manufacturer: detailsModal.manufacturer || '',
+                              model_number: detailsModal.model_number || '',
+                              description: detailsModal.description || '',
+                            })
+                            setModalEditing(true)
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          title="Delete equipment"
+                          onClick={() => {
+                            setDetailsModal(null)
+                            setModalEditing(false)
+                            setDetailsModalError('')
+                            handleDeleteEquip(detailsModal.id)
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </>
+                    )}
+                    <button
+                      onClick={() => { setDetailsModal(null); setModalEditing(false); setDetailsModalError('') }}
+                      className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors ml-1"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+                </div>
+
+                {detailsModalError && (
+                  <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600">{detailsModalError}</div>
+                )}
+
+                {/* ── Edit form ── */}
+                {modalEditing ? (
+                  <div className="border-t pt-4 space-y-4">
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      <div className="space-y-1">
+                        <label className="label">Name *</label>
+                        <input type="text" className="input" value={equipForm.name} onChange={(e) => setEquipForm((f) => ({ ...f, name: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="label">Code</label>
+                        <input type="text" className="input" value={equipForm.code} onChange={(e) => setEquipForm((f) => ({ ...f, code: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="label">Status</label>
+                        <select className="input" value={equipForm.status} onChange={(e) => setEquipForm((f) => ({ ...f, status: e.target.value }))}>
+                          <option value="active">Active</option>
+                          <option value="inactive">Inactive</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="label">Manufacturer</label>
+                        <input type="text" className="input" value={equipForm.manufacturer} onChange={(e) => setEquipForm((f) => ({ ...f, manufacturer: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="label">Model Number</label>
+                        <input type="text" className="input" value={equipForm.model_number} onChange={(e) => setEquipForm((f) => ({ ...f, model_number: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="label">Plant</label>
+                        <select
+                          className="input"
+                          value={equipForm.plant_id ?? ''}
+                          onChange={(e) => setEquipForm((f) => ({ ...f, plant_id: e.target.value ? Number(e.target.value) : null, equipment_group_id: null }))}
+                        >
+                          <option value="">Unassigned</option>
+                          {plants.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="label">Group</label>
+                        <select
+                          className="input"
+                          value={equipForm.equipment_group_id ?? ''}
+                          disabled={!equipForm.plant_id}
+                          onChange={(e) => setEquipForm((f) => ({ ...f, equipment_group_id: e.target.value ? Number(e.target.value) : null }))}
+                        >
+                          <option value="">No group</option>
+                          {equipForm.plant_id ? groups.filter((g) => g.plant_id === equipForm.plant_id).map((g) => <option key={g.id} value={g.id}>{g.name}</option>) : null}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="label">Last Service</label>
+                        <input type="date" className="input" value={equipForm.last_service_date} onChange={(e) => setEquipForm((f) => ({ ...f, last_service_date: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="label">Interval (days)</label>
+                        <input
+                          type="number" min={1} className="input"
+                          value={equipForm.service_interval_days ?? ''}
+                          onChange={(e) => setEquipForm((f) => ({ ...f, service_interval_days: e.target.value ? Number(e.target.value) : null }))}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="label">Next Service</label>
+                        <div className="text-sm text-gray-700 py-2">{calculateNextServiceDate(equipForm.last_service_date, equipForm.service_interval_days) || '—'}</div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="label">Service Status</label>
+                        <div className="text-sm text-gray-700 py-2">{calculateServiceStatus(equipForm.last_service_date, equipForm.service_interval_days)}</div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="label">Service Type</label>
+                        <input type="text" className="input" value={equipForm.service_type} onChange={(e) => setEquipForm((f) => ({ ...f, service_type: e.target.value }))} />
+                      </div>
+                      <div className="sm:col-span-2 lg:col-span-3 space-y-1">
+                        <label className="label">Service Notes</label>
+                        <input type="text" className="input" value={equipForm.service_notes} onChange={(e) => setEquipForm((f) => ({ ...f, service_notes: e.target.value }))} />
+                      </div>
+                      <div className="sm:col-span-2 lg:col-span-3 space-y-1">
+                        <label className="label">Description</label>
+                        <textarea className="input resize-none" rows={3} value={equipForm.description} onChange={(e) => setEquipForm((f) => ({ ...f, description: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                      <button onClick={() => handleUpdateEquip(detailsModal.id)} className="btn-primary">Save changes</button>
+                      <button onClick={() => { setModalEditing(false); setDetailsModalError('') }} className="btn-secondary">Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                {/* Equipment Info Grid */}
+                <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3 lg:grid-cols-4 border-t pt-4">
+                  <InfoField label="Plant" value={detailsModal.plant_name} />
+                  <InfoField label="Group" value={detailsModal.equipment_group_name} />
+                  <InfoField label="Status">
+                    <span className={`badge ${detailsModal.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                      {detailsModal.status}
+                    </span>
+                  </InfoField>
+                  <InfoField label="Manufacturer" value={detailsModal.manufacturer} />
+                  <InfoField label="Model Number" value={detailsModal.model_number} />
+                  <InfoField label="Last Service" value={detailsModal.last_service_date} />
+                  <InfoField label="Next Service" value={detailsModal.next_service_date} />
+                  <InfoField label="Service Status">
+                    <span className={`badge ${serviceStatusBadge(detailsModal.service_status)}`}>
+                      {detailsModal.service_status || 'Not Scheduled'}
+                    </span>
+                  </InfoField>
+                  <InfoField label="Service Type" value={detailsModal.service_type} />
+                  <InfoField label="Interval" value={detailsModal.service_interval_days != null ? `${detailsModal.service_interval_days} days` : null} />
+                </div>
+
+                {/* Description */}
+                {detailsModal.description && (
+                  <div className="border-t pt-4">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Description</p>
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{detailsModal.description}</p>
+                  </div>
+                )}
+                {detailsModal.service_notes && (
+                  <div className="border-t pt-4">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Service Notes</p>
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{detailsModal.service_notes}</p>
+                  </div>
+                )}
+
+                {/* Recent Service History */}
+                <div className="border-t pt-4 space-y-3">
+                  <h3 className="text-sm font-semibold text-gray-700">Recent Service History</h3>
+                  {detailsModal.recent_service_histories.length === 0 ? (
+                    <p className="text-xs text-gray-400">No service history recorded.</p>
+                  ) : (
+                    <div className="table-container">
+                      <table className="table text-sm">
+                        <thead>
+                          <tr>
+                            <th>Date</th>
+                            <th>Type</th>
+                            <th>Performed By</th>
+                            <th>Notes</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {detailsModal.recent_service_histories.map((s) => (
+                            <tr key={s.id}>
+                              <td className="text-gray-600">{s.service_date}</td>
+                              <td>{s.service_type || '—'}</td>
+                              <td className="text-gray-600">{s.performed_by || '—'}</td>
+                              <td className="text-gray-500 max-w-[200px] truncate">{s.notes || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* Recent Maintenance Records */}
+                <div className="border-t pt-4 space-y-3">
+                  <h3 className="text-sm font-semibold text-gray-700">Recent Maintenance Records</h3>
+                  {detailsModal.recent_maintenance_records.length === 0 ? (
+                    <p className="text-xs text-gray-400">No maintenance records found.</p>
+                  ) : (
+                    <div className="table-container">
+                      <table className="table text-sm">
+                        <thead>
+                          <tr>
+                            <th>Date</th>
+                            <th>MR No.</th>
+                            <th>Issue</th>
+                            <th>Artisan</th>
+                            <th>Downtime</th>
+                            <th>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {detailsModal.recent_maintenance_records.map((r) => (
+                            <tr key={r.id}>
+                              <td className="text-gray-600">{r.record_date}</td>
+                              <td className="font-mono text-xs text-gray-500">{r.mr_no || '—'}</td>
+                              <td className="max-w-[200px] truncate">{r.issue_description || '—'}</td>
+                              <td className="text-gray-600">{r.artisan_name || '—'}</td>
+                              <td className="text-gray-600">{r.downtime_minutes > 0 ? `${r.downtime_minutes} min` : '—'}</td>
+                              <td>
+                                <span className={`badge ${
+                                  r.status === 'closed' ? 'bg-green-100 text-green-800'
+                                  : r.status === 'in-progress' ? 'bg-yellow-100 text-yellow-800'
+                                  : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {r.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+                  </>
+                )}
+              </>
+            ) : (
+              detailsModalError ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-semibold text-gray-700">Equipment Details</h2>
+                    <button onClick={() => { setDetailsModal(null); setModalEditing(false); setDetailsModalError('') }} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
+                  </div>
+                  <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600">{detailsModalError}</div>
+                </div>
+              ) : null
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function InfoField({
+  label,
+  value,
+  children,
+}: {
+  label: string
+  value?: string | number | null
+  children?: React.ReactNode
+}) {
+  return (
+    <div>
+      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</p>
+      {children ? (
+        <div className="mt-1">{children}</div>
+      ) : (
+        <p className="mt-1 text-sm text-gray-800">{value ?? '—'}</p>
+      )}
     </div>
   )
 }

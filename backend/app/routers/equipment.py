@@ -1,3 +1,4 @@
+from datetime import date, timedelta
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -6,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.equipment import Equipment
 from app.models.equipment_group import EquipmentGroup
+from app.models.maintenance_record import MaintenanceRecord
 from app.models.user import User
 from app.schemas.equipment import Equipment as EquipmentSchema, EquipmentCreate, EquipmentUpdate
 from app.schemas.equipment_group import (
@@ -19,6 +21,37 @@ from app.services.audit_service import log_action
 router = APIRouter()
 
 
+def _calculate_next_service_date(last_service_date: Optional[date], service_interval_days: Optional[int]) -> Optional[date]:
+    if last_service_date and service_interval_days:
+        return last_service_date + timedelta(days=service_interval_days)
+    return None
+
+
+def _derive_service_status(last_service_date: Optional[date], service_interval_days: Optional[int], next_service_date: Optional[date]) -> str:
+    if not last_service_date or not service_interval_days or not next_service_date:
+        return "Not Scheduled"
+    today = date.today()
+    if next_service_date < today:
+        return "Overdue"
+    if next_service_date <= today + timedelta(days=14):
+        return "Due Soon"
+    return "On Schedule"
+
+
+def _prepare_service_fields(data: dict, existing: Optional[Equipment] = None) -> dict:
+    last_service_date = data.get("last_service_date")
+    service_interval_days = data.get("service_interval_days")
+
+    if existing is not None:
+        last_service_date = last_service_date if "last_service_date" in data else existing.last_service_date
+        service_interval_days = service_interval_days if "service_interval_days" in data else existing.service_interval_days
+
+    next_service_date = _calculate_next_service_date(last_service_date, service_interval_days)
+    data["next_service_date"] = next_service_date
+    data["service_status"] = _derive_service_status(last_service_date, service_interval_days, next_service_date)
+    return data
+
+
 def _enrich(eq: Equipment) -> dict:
     return {
         "id": eq.id,
@@ -27,6 +60,15 @@ def _enrich(eq: Equipment) -> dict:
         "plant_id": eq.plant_id,
         "equipment_group_id": eq.equipment_group_id,
         "status": eq.status,
+        "last_service_date": eq.last_service_date,
+        "service_interval_days": eq.service_interval_days,
+        "next_service_date": eq.next_service_date,
+        "service_type": eq.service_type,
+        "service_notes": eq.service_notes,
+        "service_status": eq.service_status,
+        "manufacturer": eq.manufacturer,
+        "model_number": eq.model_number,
+        "description": eq.description,
         "plant_name": eq.plant.name if eq.plant else None,
         "equipment_group_name": eq.equipment_group.name if eq.equipment_group else None,
     }
@@ -68,12 +110,60 @@ def create_equipment(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    db_eq = Equipment(**eq.model_dump())
+    data = _prepare_service_fields(eq.model_dump())
+    db_eq = Equipment(**data)
     db.add(db_eq)
     db.commit()
     db.refresh(db_eq)
     log_action(db, current_user.id, "create", "equipment", db_eq.id, f"Created equipment {db_eq.equipment_name}")
     return _enrich(db_eq)
+
+
+@router.get("/{equipment_id}/details")
+def get_equipment_details(
+    equipment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    db_eq = db.query(Equipment).filter(Equipment.id == equipment_id).first()
+    if not db_eq:
+        raise HTTPException(status_code=404, detail="Equipment not found")
+
+    recent_service = sorted(db_eq.service_histories, key=lambda x: x.service_date, reverse=True)[:5]
+    recent_maintenance = (
+        db.query(MaintenanceRecord)
+        .filter(MaintenanceRecord.equipment_id == equipment_id)
+        .order_by(MaintenanceRecord.record_date.desc())
+        .limit(5)
+        .all()
+    )
+
+    return {
+        **_enrich(db_eq),
+        "recent_service_histories": [
+            {
+                "id": s.id,
+                "service_date": str(s.service_date),
+                "service_type": s.service_type,
+                "performed_by": s.performed_by,
+                "notes": s.notes,
+            }
+            for s in recent_service
+        ],
+        "recent_maintenance_records": [
+            {
+                "id": r.id,
+                "record_date": str(r.record_date),
+                "mr_no": r.mr_no,
+                "issue_description": r.issue_description,
+                "status": r.status,
+                "artisan_name": r.artisan_name,
+                "downtime_minutes": r.downtime_minutes,
+                "reporter_name": r.reporter_name,
+            }
+            for r in recent_maintenance
+        ],
+    }
 
 
 @router.put("/{equipment_id}")
@@ -86,7 +176,9 @@ def update_equipment(
     db_eq = db.query(Equipment).filter(Equipment.id == equipment_id).first()
     if not db_eq:
         raise HTTPException(status_code=404, detail="Equipment not found")
-    for field, value in eq_update.model_dump(exclude_unset=True).items():
+    update_data = eq_update.model_dump(exclude_unset=True)
+    update_data = _prepare_service_fields(update_data, existing=db_eq)
+    for field, value in update_data.items():
         setattr(db_eq, field, value)
     db.commit()
     db.refresh(db_eq)

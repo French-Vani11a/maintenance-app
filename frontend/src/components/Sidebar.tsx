@@ -9,6 +9,7 @@ import {
   LogOut,
   Shield,
   Wrench,
+  CalendarCheck,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -16,6 +17,7 @@ const nav = [
   { to: '/dashboard', icon: BarChart2, label: 'Dashboard' },
   { to: '/records', icon: ClipboardList, label: 'Records' },
   { to: '/equipment', icon: Wrench, label: 'Equipment' },
+  { to: '/service-dashboard', icon: CalendarCheck, label: 'Service Dashboard' },
   { to: '/import', icon: Download, label: 'Import' },
   { to: '/reports', icon: FileText, label: 'Reports' },
 ]

@@ -12,6 +12,35 @@ export interface Equipment {
   equipment_group_id: number | null
   equipment_group_name: string | null
   status: string
+  last_service_date?: string | null
+  service_interval_days?: number | null
+  next_service_date?: string | null
+  service_type?: string | null
+  service_notes?: string | null
+  service_status?: string
+  manufacturer?: string | null
+  model_number?: string | null
+  description?: string | null
+}
+
+export interface EquipmentDetails extends Equipment {
+  recent_service_histories: Array<{
+    id: number
+    service_date: string
+    service_type: string | null
+    performed_by: string | null
+    notes: string | null
+  }>
+  recent_maintenance_records: Array<{
+    id: number
+    record_date: string
+    mr_no: string | null
+    issue_description: string | null
+    status: string
+    artisan_name: string | null
+    downtime_minutes: number
+    reporter_name: string | null
+  }>
 }
 
 export interface EquipmentGroup {
@@ -27,6 +56,52 @@ export interface User {
   username: string
   role: string
   is_active: boolean
+}
+
+export interface ServiceHistory {
+  id: number
+  equipment_id: number
+  service_date: string
+  service_type: string | null
+  performed_by: string | null
+  notes: string | null
+  created_at: string | null
+}
+
+export interface PartsReplacement {
+  id: number
+  equipment_id: number
+  part_name: string
+  interval_days: number | null
+  last_replacement_date: string | null
+  next_replacement_date: string | null
+  replacement_status: string | null
+  notes: string | null
+  created_at: string | null
+}
+
+export interface ServiceDashboardStats {
+  overdue_count: number
+  due_soon_count: number
+  upcoming_count: number
+  not_scheduled_count: number
+  completed_this_month: number
+  status_breakdown: Array<{ status: string; count: number }>
+  overdue_by_plant: Array<{ id: number; name: string; overdue_count: number }>
+  upcoming_services: Array<{
+    id: number
+    equipment_name: string
+    plant_name: string | null
+    next_service_date: string | null
+    status: string
+  }>
+  overdue_services: Array<{
+    id: number
+    equipment_name: string
+    plant_name: string | null
+    next_service_date: string | null
+    status: string
+  }>
 }
 
 export interface FaultCategory {

@@ -4,7 +4,19 @@ from sqlalchemy import inspect, text
 
 from app.config import settings
 from app.database import Base, engine, SessionLocal
-from app.routers import auth, plants, equipment, users, maintenance_records, import_excel, dashboard, logs
+from app.routers import (
+    auth,
+    plants,
+    equipment,
+    users,
+    maintenance_records,
+    import_excel,
+    dashboard,
+    service_dashboard,
+    service_history,
+    parts_replacements,
+    logs,
+)
 
 
 def create_tables():
@@ -20,6 +32,33 @@ def ensure_schema_updates():
         if "equipment_group_id" not in equipment_columns:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE equipment ADD COLUMN equipment_group_id INTEGER REFERENCES equipment_groups(id)"))
+        if "last_service_date" not in equipment_columns:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE equipment ADD COLUMN last_service_date DATE"))
+        if "service_interval_days" not in equipment_columns:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE equipment ADD COLUMN service_interval_days INTEGER"))
+        if "next_service_date" not in equipment_columns:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE equipment ADD COLUMN next_service_date DATE"))
+        if "service_type" not in equipment_columns:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE equipment ADD COLUMN service_type VARCHAR(100)"))
+        if "service_notes" not in equipment_columns:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE equipment ADD COLUMN service_notes TEXT"))
+        if "service_status" not in equipment_columns:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE equipment ADD COLUMN service_status VARCHAR(30) DEFAULT 'Not Scheduled' NOT NULL"))
+        if "manufacturer" not in equipment_columns:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE equipment ADD COLUMN manufacturer VARCHAR(200)"))
+        if "model_number" not in equipment_columns:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE equipment ADD COLUMN model_number VARCHAR(100)"))
+        if "description" not in equipment_columns:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE equipment ADD COLUMN description TEXT"))
 
     if "maintenance_records" not in tables:
         return
@@ -82,6 +121,9 @@ app.include_router(users.router, prefix="/api/users", tags=["Users"])
 app.include_router(maintenance_records.router, prefix="/api/records", tags=["Maintenance Records"])
 app.include_router(import_excel.router, prefix="/api/import", tags=["Import"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
+app.include_router(service_dashboard.router, prefix="/api/service-dashboard", tags=["Service Dashboard"])
+app.include_router(service_history.router, prefix="/api/service-history", tags=["Service History"])
+app.include_router(parts_replacements.router, prefix="/api/parts-replacements", tags=["Parts Replacements"])
 app.include_router(logs.router, prefix="/api/logs", tags=["Audit Logs"])
 
 

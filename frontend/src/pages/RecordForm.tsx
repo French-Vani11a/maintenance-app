@@ -86,7 +86,7 @@ export default function RecordForm() {
 
   useEffect(() => {
     getPlants().then(setPlants)
-    getEquipment().then((result) => {
+    getEquipment({ skip: 0, limit: 10000 }).then((result) => {
       setAllEquipment(result.equipment)
       setFilteredEquipment(result.equipment)
     })

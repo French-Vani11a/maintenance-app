@@ -9,6 +9,7 @@ import RecordForm from './pages/RecordForm'
 import EquipmentManagement from './pages/EquipmentManagement'
 import ImportPage from './pages/ImportPage'
 import Reports from './pages/Reports'
+import ServiceDashboard from './pages/ServiceDashboard'
 import UsersManagement from './pages/UsersManagement'
 import ChangePassword from './pages/ChangePassword'
 import AdminLogs from './pages/AdminLogs'
@@ -33,6 +34,7 @@ export default function App() {
             <Route path="records/new" element={<RecordForm />} />
             <Route path="records/:id/edit" element={<RecordForm />} />
             <Route path="equipment" element={<EquipmentManagement />} />
+            <Route path="service-dashboard" element={<ServiceDashboard />} />
             <Route path="import" element={<ImportPage />} />
             <Route path="reports" element={<Reports />} />
             <Route
