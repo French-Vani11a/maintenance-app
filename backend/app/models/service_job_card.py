@@ -18,6 +18,8 @@ class ServiceJobCard(Base):
     service_description = Column(Text, nullable=True)
     work_to_be_done = Column(Text, nullable=True)
     assigned_artisan = Column(String(150), nullable=True)
+    assigned_by = Column(String(150), nullable=True)
+    start_date = Column(Date, nullable=True)
     parts_required = Column(Text, nullable=True)
     priority = Column(String(20), default="medium", nullable=False)
     notes = Column(Text, nullable=True)

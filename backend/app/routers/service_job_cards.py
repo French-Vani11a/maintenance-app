@@ -35,6 +35,8 @@ def _enrich(jc: ServiceJobCard) -> dict:
         "service_description": jc.service_description,
         "work_to_be_done": jc.work_to_be_done,
         "assigned_artisan": jc.assigned_artisan,
+        "assigned_by": jc.assigned_by,
+        "start_date": jc.start_date,
         "parts_required": jc.parts_required,
         "priority": jc.priority,
         "notes": jc.notes,

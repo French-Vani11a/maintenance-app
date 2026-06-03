@@ -206,6 +206,8 @@ export interface ServiceJobCard {
   service_description: string | null
   work_to_be_done: string | null
   assigned_artisan: string | null
+  assigned_by: string | null
+  start_date: string | null
   parts_required: string | null
   priority: string
   notes: string | null

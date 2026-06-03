@@ -26,6 +26,7 @@ import type {
   ServiceJobCard,
 } from '../types'
 import LoadingSpinner from '../components/LoadingSpinner'
+import ListInput, { serializeListField } from '../components/ListInput'
 
 const EMPTY_EQUIP_FORM = {
   name: '',
@@ -86,11 +87,13 @@ export default function EquipmentManagement() {
   const [showServiceForm, setShowServiceForm] = useState(false)
   const [serviceForm, setServiceForm] = useState({
     service_type: '',
+    start_date: '',
     due_date: '',
     service_description: '',
-    work_to_be_done: '',
+    work_to_be_done: [] as string[],
     assigned_artisan: '',
-    parts_required: '',
+    assigned_by: '',
+    parts_required: [] as string[],
     priority: 'medium',
     notes: '',
   })
@@ -343,15 +346,17 @@ export default function EquipmentManagement() {
         service_type: serviceForm.service_type || null,
         due_date: serviceForm.due_date || null,
         service_description: serviceForm.service_description || null,
-        work_to_be_done: serviceForm.work_to_be_done || null,
+        work_to_be_done: serializeListField(serviceForm.work_to_be_done),
         assigned_artisan: serviceForm.assigned_artisan || null,
-        parts_required: serviceForm.parts_required || null,
+        assigned_by: serviceForm.assigned_by || null,
+        start_date: serviceForm.start_date || null,
+        parts_required: serializeListField(serviceForm.parts_required),
         priority: serviceForm.priority,
         notes: serviceForm.notes || null,
       })
       setServiceFormSuccess(`Job card ${card.job_card_number} created.`)
       setShowServiceForm(false)
-      setServiceForm({ service_type: '', due_date: '', service_description: '', work_to_be_done: '', assigned_artisan: '', parts_required: '', priority: 'medium', notes: '' })
+      setServiceForm({ service_type: '', start_date: '', due_date: '', service_description: '', work_to_be_done: [], assigned_artisan: '', assigned_by: '', parts_required: [], priority: 'medium', notes: '' })
       // Refresh active card so button switches to Mark Complete
       await loadEquipmentActiveCard(detailsModal.id)
     } catch (e: any) {
@@ -1186,6 +1191,19 @@ export default function EquipmentManagement() {
                           <input type="text" className="input" value={serviceForm.service_type} onChange={(e) => setServiceForm((f) => ({ ...f, service_type: e.target.value }))} />
                         </div>
                         <div className="space-y-1">
+                          <label className="label">Priority</label>
+                          <select className="input" value={serviceForm.priority} onChange={(e) => setServiceForm((f) => ({ ...f, priority: e.target.value }))}>
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                            <option value="critical">Critical</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="label">Start Date</label>
+                          <input type="date" className="input" value={serviceForm.start_date} onChange={(e) => setServiceForm((f) => ({ ...f, start_date: e.target.value }))} />
+                        </div>
+                        <div className="space-y-1">
                           <label className="label">Due Date</label>
                           <input
                             type="date"
@@ -1200,13 +1218,8 @@ export default function EquipmentManagement() {
                           <input type="text" className="input" value={serviceForm.assigned_artisan} onChange={(e) => setServiceForm((f) => ({ ...f, assigned_artisan: e.target.value }))} />
                         </div>
                         <div className="space-y-1">
-                          <label className="label">Priority</label>
-                          <select className="input" value={serviceForm.priority} onChange={(e) => setServiceForm((f) => ({ ...f, priority: e.target.value }))}>
-                            <option value="low">Low</option>
-                            <option value="medium">Medium</option>
-                            <option value="high">High</option>
-                            <option value="critical">Critical</option>
-                          </select>
+                          <label className="label">Assigned By</label>
+                          <input type="text" className="input" value={serviceForm.assigned_by} onChange={(e) => setServiceForm((f) => ({ ...f, assigned_by: e.target.value }))} />
                         </div>
                         <div className="sm:col-span-2 space-y-1">
                           <label className="label">Service Description</label>
@@ -1214,11 +1227,11 @@ export default function EquipmentManagement() {
                         </div>
                         <div className="sm:col-span-2 space-y-1">
                           <label className="label">Work To Be Done</label>
-                          <textarea className="input resize-none" rows={2} value={serviceForm.work_to_be_done} onChange={(e) => setServiceForm((f) => ({ ...f, work_to_be_done: e.target.value }))} />
+                          <ListInput items={serviceForm.work_to_be_done} onChange={(items) => setServiceForm((f) => ({ ...f, work_to_be_done: items }))} placeholder="Add task…" />
                         </div>
                         <div className="sm:col-span-2 space-y-1">
                           <label className="label">Parts Required</label>
-                          <textarea className="input resize-none" rows={2} value={serviceForm.parts_required} onChange={(e) => setServiceForm((f) => ({ ...f, parts_required: e.target.value }))} />
+                          <ListInput items={serviceForm.parts_required} onChange={(items) => setServiceForm((f) => ({ ...f, parts_required: items }))} placeholder="Add part…" />
                         </div>
                         <div className="sm:col-span-2 space-y-1">
                           <label className="label">Notes</label>

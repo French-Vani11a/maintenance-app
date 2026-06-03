@@ -26,11 +26,11 @@ import {
 import type {
   DueEquipment,
   EnrichedServiceHistory,
-  JobCardsResponse,
   Plant,
   ServiceJobCard,
 } from '../types'
 import LoadingSpinner from '../components/LoadingSpinner'
+import ListInput, { parseListField, serializeListField } from '../components/ListInput'
 
 // ── Print helper ──────────────────────────────────────────────────────────────
 
@@ -42,6 +42,10 @@ function printJobCard(card: ServiceJobCard) {
     low: '#16a34a',
   }
   const color = priorityColor[card.priority] ?? '#6b7280'
+  const workList = parseListField(card.work_to_be_done)
+  const partsList = parseListField(card.parts_required)
+  const listHtml = (items: string[]) =>
+    items.length === 0 ? '—' : `<ul style="margin:4px 0 0 16px;padding:0">${items.map((i) => `<li>${i}</li>`).join('')}</ul>`
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/>
 <title>Job Card ${card.job_card_number}</title>
 <style>
@@ -66,12 +70,14 @@ function printJobCard(card: ServiceJobCard) {
   <div class="field"><div class="label">Equipment</div><div class="value">${card.equipment_name ?? '—'}${card.equipment_code ? ' (' + card.equipment_code + ')' : ''}</div></div>
   <div class="field"><div class="label">Plant</div><div class="value">${card.plant_name ?? '—'}</div></div>
   <div class="field"><div class="label">Service Type</div><div class="value">${card.service_type ?? '—'}</div></div>
+  <div class="field"><div class="label">Start Date</div><div class="value">${card.start_date ?? '—'}</div></div>
   <div class="field"><div class="label">Due Date</div><div class="value">${card.due_date ?? '—'}</div></div>
-  <div class="field"><div class="label">Assigned Artisan</div><div class="value">${card.assigned_artisan ?? '—'}</div></div>
   <div class="field"><div class="label">Priority</div><div class="value"><span class="badge" style="background:${color}22;color:${color}">${card.priority.toUpperCase()}</span></div></div>
+  <div class="field"><div class="label">Assigned Artisan</div><div class="value">${card.assigned_artisan ?? '—'}</div></div>
+  <div class="field"><div class="label">Assigned By</div><div class="value">${card.assigned_by ?? '—'}</div></div>
   <div class="field full"><div class="label">Service Description</div><div class="value">${card.service_description ?? '—'}</div></div>
-  <div class="field full"><div class="label">Work To Be Done</div><div class="value">${card.work_to_be_done ?? '—'}</div></div>
-  <div class="field full"><div class="label">Parts Required</div><div class="value">${card.parts_required ?? '—'}</div></div>
+  <div class="field full"><div class="label">Work To Be Done</div><div class="value">${listHtml(workList)}</div></div>
+  <div class="field full"><div class="label">Parts Required</div><div class="value">${listHtml(partsList)}</div></div>
   <div class="field full"><div class="label">Notes</div><div class="value">${card.notes ?? '—'}</div></div>
 </div>
 <hr/>
@@ -81,11 +87,14 @@ function printJobCard(card: ServiceJobCard) {
   <div class="sig">Supervisor &amp; Date</div>
 </div>
 </body></html>`
-  const win = window.open('', '_blank', 'width=850,height=650')
+  const blob = new Blob([html], { type: 'text/html' })
+  const url = URL.createObjectURL(blob)
+  const win = window.open(url, '_blank', 'width=850,height=650')
   if (win) {
-    win.document.write(html)
-    win.document.close()
-    win.onload = () => win.print()
+    win.onload = () => {
+      win.print()
+      URL.revokeObjectURL(url)
+    }
   }
 }
 
@@ -95,11 +104,14 @@ const EMPTY_JC_FORM = {
   equipment_id: null as number | null,
   plant_id: null as number | null,
   service_type: '',
+  start_date: '',
   due_date: '',
+  _next_service_date: '', // display hint only — not sent to API
   service_description: '',
-  work_to_be_done: '',
+  work_to_be_done: [] as string[],
   assigned_artisan: '',
-  parts_required: '',
+  assigned_by: '',
+  parts_required: [] as string[],
   priority: 'medium',
   notes: '',
 }
@@ -319,23 +331,29 @@ export default function ServiceNow() {
     setJcError('')
   }
 
+  function buildJobCardPayload() {
+    return {
+      equipment_id: jcForm.equipment_id!,
+      plant_id: jcForm.plant_id,
+      service_type: jcForm.service_type || null,
+      start_date: jcForm.start_date || null,
+      due_date: jcForm.due_date || null,
+      service_description: jcForm.service_description || null,
+      work_to_be_done: serializeListField(jcForm.work_to_be_done),
+      assigned_artisan: jcForm.assigned_artisan || null,
+      assigned_by: jcForm.assigned_by || null,
+      parts_required: serializeListField(jcForm.parts_required),
+      priority: jcForm.priority,
+      notes: jcForm.notes || null,
+    }
+  }
+
   async function handleSaveJobCard() {
     if (!jcForm.equipment_id) { setJcError('Equipment is required'); return }
     setJcSaving(true)
     setJcError('')
     try {
-      await createJobCard({
-        equipment_id: jcForm.equipment_id,
-        plant_id: jcForm.plant_id,
-        service_type: jcForm.service_type || null,
-        due_date: jcForm.due_date || null,
-        service_description: jcForm.service_description || null,
-        work_to_be_done: jcForm.work_to_be_done || null,
-        assigned_artisan: jcForm.assigned_artisan || null,
-        parts_required: jcForm.parts_required || null,
-        priority: jcForm.priority,
-        notes: jcForm.notes || null,
-      })
+      await createJobCard(buildJobCardPayload())
       closeModal()
       setManualResults([])
       setManualSearch('')
@@ -352,18 +370,7 @@ export default function ServiceNow() {
     setJcSaving(true)
     setJcError('')
     try {
-      const card = await createJobCard({
-        equipment_id: jcForm.equipment_id,
-        plant_id: jcForm.plant_id,
-        service_type: jcForm.service_type || null,
-        due_date: jcForm.due_date || null,
-        service_description: jcForm.service_description || null,
-        work_to_be_done: jcForm.work_to_be_done || null,
-        assigned_artisan: jcForm.assigned_artisan || null,
-        parts_required: jcForm.parts_required || null,
-        priority: jcForm.priority,
-        notes: jcForm.notes || null,
-      })
+      const card = await createJobCard(buildJobCardPayload())
       closeModal()
       setManualResults([])
       setManualSearch('')
@@ -383,10 +390,12 @@ export default function ServiceNow() {
     try {
       const updated = await updateJobCard(viewingCard.id, {
         service_type: viewingCard.service_type,
+        start_date: viewingCard.start_date,
         due_date: viewingCard.due_date,
         service_description: viewingCard.service_description,
         work_to_be_done: viewingCard.work_to_be_done,
         assigned_artisan: viewingCard.assigned_artisan,
+        assigned_by: viewingCard.assigned_by,
         parts_required: viewingCard.parts_required,
         priority: viewingCard.priority,
         notes: viewingCard.notes,
@@ -869,14 +878,6 @@ export default function ServiceNow() {
                 <input type="text" className="input" value={jcForm.service_type} onChange={(e) => setJcForm((f) => ({ ...f, service_type: e.target.value }))} />
               </div>
               <div className="space-y-1">
-                <label className="label">Due Date</label>
-                <input type="date" className="input" value={jcForm.due_date} onChange={(e) => setJcForm((f) => ({ ...f, due_date: e.target.value }))} />
-              </div>
-              <div className="space-y-1">
-                <label className="label">Assigned Artisan</label>
-                <input type="text" className="input" value={jcForm.assigned_artisan} onChange={(e) => setJcForm((f) => ({ ...f, assigned_artisan: e.target.value }))} />
-              </div>
-              <div className="space-y-1">
                 <label className="label">Priority</label>
                 <select className="input" value={jcForm.priority} onChange={(e) => setJcForm((f) => ({ ...f, priority: e.target.value }))}>
                   <option value="low">Low</option>
@@ -885,17 +886,33 @@ export default function ServiceNow() {
                   <option value="critical">Critical</option>
                 </select>
               </div>
+              <div className="space-y-1">
+                <label className="label">Start Date</label>
+                <input type="date" className="input" value={jcForm.start_date} onChange={(e) => setJcForm((f) => ({ ...f, start_date: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <label className="label">Due Date</label>
+                <input type="date" className="input" value={jcForm.due_date} onChange={(e) => setJcForm((f) => ({ ...f, due_date: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <label className="label">Assigned Artisan</label>
+                <input type="text" className="input" value={jcForm.assigned_artisan} onChange={(e) => setJcForm((f) => ({ ...f, assigned_artisan: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <label className="label">Assigned By</label>
+                <input type="text" className="input" value={jcForm.assigned_by} onChange={(e) => setJcForm((f) => ({ ...f, assigned_by: e.target.value }))} />
+              </div>
               <div className="sm:col-span-2 space-y-1">
                 <label className="label">Service Description</label>
                 <textarea className="input resize-none" rows={2} value={jcForm.service_description} onChange={(e) => setJcForm((f) => ({ ...f, service_description: e.target.value }))} />
               </div>
               <div className="sm:col-span-2 space-y-1">
                 <label className="label">Work To Be Done</label>
-                <textarea className="input resize-none" rows={2} value={jcForm.work_to_be_done} onChange={(e) => setJcForm((f) => ({ ...f, work_to_be_done: e.target.value }))} />
+                <ListInput items={jcForm.work_to_be_done} onChange={(items) => setJcForm((f) => ({ ...f, work_to_be_done: items }))} placeholder="Add task…" />
               </div>
               <div className="sm:col-span-2 space-y-1">
                 <label className="label">Parts Required</label>
-                <textarea className="input resize-none" rows={2} value={jcForm.parts_required} onChange={(e) => setJcForm((f) => ({ ...f, parts_required: e.target.value }))} />
+                <ListInput items={jcForm.parts_required} onChange={(items) => setJcForm((f) => ({ ...f, parts_required: items }))} placeholder="Add part…" />
               </div>
               <div className="sm:col-span-2 space-y-1">
                 <label className="label">Notes</label>
@@ -951,6 +968,9 @@ export default function ServiceNow() {
                 ['Equipment', `${viewingCard.equipment_name ?? '—'}${viewingCard.equipment_code ? ' (' + viewingCard.equipment_code + ')' : ''}`],
                 ['Plant', viewingCard.plant_name ?? '—'],
                 ['Created By', viewingCard.created_by_user_name ?? '—'],
+                ['Assigned Artisan', viewingCard.assigned_artisan ?? '—'],
+                ['Assigned By', viewingCard.assigned_by ?? '—'],
+                ['Start Date', viewingCard.start_date ?? '—'],
                 ['Due Date', viewingCard.due_date ?? '—'],
                 ['Completed', viewingCard.completed_date ?? '—'],
               ].map(([label, value]) => (
@@ -970,6 +990,19 @@ export default function ServiceNow() {
                     <input type="text" className="input" value={viewingCard.service_type ?? ''} onChange={(e) => setViewingCard((c) => c ? { ...c, service_type: e.target.value } : c)} />
                   </div>
                   <div className="space-y-1">
+                    <label className="label">Priority</label>
+                    <select className="input" value={viewingCard.priority} onChange={(e) => setViewingCard((c) => c ? { ...c, priority: e.target.value } : c)}>
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                      <option value="critical">Critical</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="label">Start Date</label>
+                    <input type="date" className="input" value={viewingCard.start_date ?? ''} onChange={(e) => setViewingCard((c) => c ? { ...c, start_date: e.target.value } : c)} />
+                  </div>
+                  <div className="space-y-1">
                     <label className="label">Due Date</label>
                     <input type="date" className="input" value={viewingCard.due_date ?? ''} onChange={(e) => setViewingCard((c) => c ? { ...c, due_date: e.target.value } : c)} />
                   </div>
@@ -978,13 +1011,8 @@ export default function ServiceNow() {
                     <input type="text" className="input" value={viewingCard.assigned_artisan ?? ''} onChange={(e) => setViewingCard((c) => c ? { ...c, assigned_artisan: e.target.value } : c)} />
                   </div>
                   <div className="space-y-1">
-                    <label className="label">Priority</label>
-                    <select className="input" value={viewingCard.priority} onChange={(e) => setViewingCard((c) => c ? { ...c, priority: e.target.value } : c)}>
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
-                      <option value="critical">Critical</option>
-                    </select>
+                    <label className="label">Assigned By</label>
+                    <input type="text" className="input" value={viewingCard.assigned_by ?? ''} onChange={(e) => setViewingCard((c) => c ? { ...c, assigned_by: e.target.value } : c)} />
                   </div>
                   <div className="sm:col-span-2 space-y-1">
                     <label className="label">Status</label>
@@ -995,11 +1023,19 @@ export default function ServiceNow() {
                   </div>
                   <div className="sm:col-span-2 space-y-1">
                     <label className="label">Work To Be Done</label>
-                    <textarea className="input resize-none" rows={2} value={viewingCard.work_to_be_done ?? ''} onChange={(e) => setViewingCard((c) => c ? { ...c, work_to_be_done: e.target.value } : c)} />
+                    <ListInput
+                      items={parseListField(viewingCard.work_to_be_done)}
+                      onChange={(items) => setViewingCard((c) => c ? { ...c, work_to_be_done: serializeListField(items) } : c)}
+                      placeholder="Add task…"
+                    />
                   </div>
                   <div className="sm:col-span-2 space-y-1">
                     <label className="label">Parts Required</label>
-                    <textarea className="input resize-none" rows={2} value={viewingCard.parts_required ?? ''} onChange={(e) => setViewingCard((c) => c ? { ...c, parts_required: e.target.value } : c)} />
+                    <ListInput
+                      items={parseListField(viewingCard.parts_required)}
+                      onChange={(items) => setViewingCard((c) => c ? { ...c, parts_required: serializeListField(items) } : c)}
+                      placeholder="Add part…"
+                    />
                   </div>
                   <div className="sm:col-span-2 space-y-1">
                     <label className="label">Notes</label>
@@ -1060,15 +1096,41 @@ export default function ServiceNow() {
               <div className="space-y-3 border-t pt-4">
                 {[
                   ['Service Type', viewingCard.service_type],
-                  ['Work To Be Done', viewingCard.work_to_be_done],
-                  ['Parts Required', viewingCard.parts_required],
+                  ['Start Date', viewingCard.start_date],
+                  ['Assigned By', viewingCard.assigned_by],
                   ['Notes', viewingCard.notes],
                 ].filter(([, v]) => v).map(([label, value]) => (
                   <div key={label as string}>
                     <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label as string}</p>
-                    <p className="mt-1 text-sm text-gray-800 whitespace-pre-wrap">{value as string}</p>
+                    <p className="mt-1 text-sm text-gray-800">{value as string}</p>
                   </div>
                 ))}
+                {parseListField(viewingCard.work_to_be_done).length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Work To Be Done</p>
+                    <ul className="mt-1 space-y-1">
+                      {parseListField(viewingCard.work_to_be_done).map((item, i) => (
+                        <li key={i} className="text-sm text-gray-800 flex items-start gap-2">
+                          <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-gray-400 shrink-0" />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {parseListField(viewingCard.parts_required).length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Parts Required</p>
+                    <ul className="mt-1 space-y-1">
+                      {parseListField(viewingCard.parts_required).map((item, i) => (
+                        <li key={i} className="text-sm text-gray-800 flex items-start gap-2">
+                          <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-gray-400 shrink-0" />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             )}
           </div>

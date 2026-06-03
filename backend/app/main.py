@@ -73,6 +73,15 @@ def ensure_schema_updates():
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE service_history ADD COLUMN job_card_id INTEGER REFERENCES service_job_cards(id)"))
 
+    if "service_job_cards" in tables:
+        jc_columns = {c["name"] for c in inspector.get_columns("service_job_cards")}
+        if "assigned_by" not in jc_columns:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE service_job_cards ADD COLUMN assigned_by VARCHAR(150)"))
+        if "start_date" not in jc_columns:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE service_job_cards ADD COLUMN start_date DATE"))
+
     if "maintenance_records" not in tables:
         return
 

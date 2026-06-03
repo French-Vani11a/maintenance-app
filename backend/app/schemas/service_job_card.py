@@ -12,6 +12,8 @@ class ServiceJobCardBase(BaseModel):
     service_description: Optional[str] = None
     work_to_be_done: Optional[str] = None
     assigned_artisan: Optional[str] = None
+    assigned_by: Optional[str] = None
+    start_date: Optional[date] = None
     parts_required: Optional[str] = None
     priority: str = "medium"
     notes: Optional[str] = None
@@ -27,6 +29,8 @@ class ServiceJobCardUpdate(BaseModel):
     service_description: Optional[str] = None
     work_to_be_done: Optional[str] = None
     assigned_artisan: Optional[str] = None
+    assigned_by: Optional[str] = None
+    start_date: Optional[date] = None
     parts_required: Optional[str] = None
     priority: Optional[str] = None
     notes: Optional[str] = None
