@@ -413,8 +413,9 @@ export default function EquipmentManagement() {
   }
 
   function serviceStatusBadge(status?: string | null) {
-    if (status === 'Overdue') return 'bg-red-100 text-red-800'
-    if (status === 'Due Soon') return 'bg-yellow-100 text-yellow-800'
+    if (status === 'Overdue')    return 'bg-red-100 text-red-800'
+    if (status === 'Due Today')  return 'bg-orange-100 text-orange-800'
+    if (status === 'Due Soon')   return 'bg-yellow-100 text-yellow-800'
     if (status === 'On Schedule') return 'bg-green-100 text-green-800'
     return 'bg-gray-100 text-gray-600'
   }

@@ -82,12 +82,20 @@ export interface PartsReplacement {
 
 export interface ServiceDashboardStats {
   overdue_count: number
+  due_today_count: number
   due_soon_count: number
   upcoming_count: number
   not_scheduled_count: number
   completed_this_month: number
   status_breakdown: Array<{ status: string; count: number }>
   overdue_by_plant: Array<{ id: number; name: string; overdue_count: number }>
+  due_today_services: Array<{
+    id: number
+    equipment_name: string
+    plant_name: string | null
+    next_service_date: string | null
+    status: string
+  }>
   upcoming_services: Array<{
     id: number
     equipment_name: string

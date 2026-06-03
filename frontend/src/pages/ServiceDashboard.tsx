@@ -50,56 +50,33 @@ export default function ServiceDashboard() {
 
   return (
     <div className="space-y-6">
-      {stats.overdue_count > 0 && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5" />
-            <div>
-              <div className="font-semibold">{stats.overdue_count} overdue service{stats.overdue_count !== 1 ? 's' : ''}</div>
-              <div className="text-xs text-red-700/80">Please review equipment that is past due.</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {stats.due_soon_count > 0 && (
-        <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-yellow-600" />
-            <div>
-              <div className="font-semibold">{stats.due_soon_count} service{stats.due_soon_count !== 1 ? 's' : ''} due soon</div>
-              <div className="text-xs text-yellow-700/80">Schedule maintenance for equipment approaching its service date.</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="card flex items-center gap-4">
-          <div className="rounded-xl bg-red-600 p-3 text-white">
-            <AlertTriangle className="h-6 w-6" />
-          </div>
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+        <div className="rounded-xl bg-purple-100 border border-purple-200 p-4 flex items-center gap-4">
+          <div className="rounded-full bg-purple-200 p-3"><AlertTriangle className="h-6 w-6 text-purple-700" /></div>
           <div>
-            <p className="text-sm text-gray-500">Overdue Services</p>
-            <p className="text-2xl font-bold text-gray-800">{stats.overdue_count}</p>
+            <p className="text-sm text-purple-500">Overdue Services</p>
+            <p className="text-2xl font-bold text-purple-700">{stats.overdue_count}</p>
           </div>
         </div>
-        <div className="card flex items-center gap-4">
-          <div className="rounded-xl bg-yellow-500 p-3 text-white">
-            <CalendarCheck className="h-6 w-6" />
-          </div>
+        <div className="rounded-xl bg-red-100 border border-red-200 p-4 flex items-center gap-4">
+          <div className="rounded-full bg-red-200 p-3"><AlertTriangle className="h-6 w-6 text-red-700" /></div>
           <div>
-            <p className="text-sm text-gray-500">Due Soon</p>
-            <p className="text-2xl font-bold text-gray-800">{stats.due_soon_count}</p>
+            <p className="text-sm text-red-500">Due Today</p>
+            <p className="text-2xl font-bold text-red-700">{stats.due_today_count}</p>
           </div>
         </div>
-        <div className="card flex items-center gap-4">
-          <div className="rounded-xl bg-green-600 p-3 text-white">
-            <CheckCircle className="h-6 w-6" />
-          </div>
+        <div className="rounded-xl bg-yellow-100 border border-yellow-200 p-4 flex items-center gap-4">
+          <div className="rounded-full bg-yellow-200 p-3"><CalendarCheck className="h-6 w-6 text-yellow-700" /></div>
           <div>
-            <p className="text-sm text-gray-500">Completed This Month</p>
-            <p className="text-2xl font-bold text-gray-800">{stats.completed_this_month}</p>
+            <p className="text-sm text-yellow-600">Due Soon</p>
+            <p className="text-2xl font-bold text-yellow-700">{stats.due_soon_count}</p>
+          </div>
+        </div>
+        <div className="rounded-xl bg-green-100 border border-green-200 p-4 flex items-center gap-4">
+          <div className="rounded-full bg-green-200 p-3"><CheckCircle className="h-6 w-6 text-green-700" /></div>
+          <div>
+            <p className="text-sm text-green-500">Completed This Month</p>
+            <p className="text-2xl font-bold text-green-700">{stats.completed_this_month}</p>
           </div>
         </div>
       </div>

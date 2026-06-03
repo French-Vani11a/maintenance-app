@@ -118,9 +118,36 @@ def seed_default_admin():
         db.close()
 
 
+def recalculate_service_statuses():
+    from datetime import date, timedelta
+    from app.models.equipment import Equipment as EquipmentModel
+    db = SessionLocal()
+    try:
+        today = date.today()
+        for eq in db.query(EquipmentModel).all():
+            if not eq.last_service_date or not eq.service_interval_days or not eq.next_service_date:
+                new_status = "Not Scheduled"
+            elif eq.next_service_date < today:
+                new_status = "Overdue"
+            elif eq.next_service_date == today:
+                new_status = "Due Today"
+            elif eq.next_service_date <= today + timedelta(days=14):
+                new_status = "Due Soon"
+            else:
+                new_status = "On Schedule"
+            if eq.service_status != new_status:
+                eq.service_status = new_status
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
+
 create_tables()
 ensure_schema_updates()
 seed_default_admin()
+recalculate_service_statuses()
 
 app = FastAPI(
     title="Maintenance Management API",

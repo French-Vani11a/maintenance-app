@@ -15,6 +15,7 @@ from app.schemas.service_job_card import (
     ServiceJobCardUpdate,
     ServiceJobCardComplete,
 )
+from app.routers.equipment import _derive_service_status
 from app.security import get_current_user
 from app.services.audit_service import log_action
 
@@ -70,6 +71,8 @@ def _update_equipment_after_service(db: Session, equipment_id: int, service_date
         today = date.today()
         if next_date < today:
             eq.service_status = "Overdue"
+        elif next_date == today:
+            eq.service_status = "Due Today"
         elif next_date <= today + timedelta(days=14):
             eq.service_status = "Due Soon"
         else:
@@ -110,7 +113,7 @@ def get_due_equipment(
             "service_type": eq.service_type,
             "last_service_date": eq.last_service_date,
             "next_service_date": eq.next_service_date,
-            "service_status": eq.service_status,
+            "service_status": _derive_service_status(eq.last_service_date, eq.service_interval_days, eq.next_service_date),
             "service_interval_days": eq.service_interval_days,
             "manufacturer": eq.manufacturer,
             "model_number": eq.model_number,
@@ -140,7 +143,7 @@ def search_all_equipment(
             "service_type": eq.service_type,
             "last_service_date": eq.last_service_date,
             "next_service_date": eq.next_service_date,
-            "service_status": eq.service_status,
+            "service_status": _derive_service_status(eq.last_service_date, eq.service_interval_days, eq.next_service_date),
             "service_interval_days": eq.service_interval_days,
             "manufacturer": eq.manufacturer,
             "model_number": eq.model_number,

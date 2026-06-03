@@ -33,6 +33,8 @@ def _derive_service_status(last_service_date: Optional[date], service_interval_d
     today = date.today()
     if next_service_date < today:
         return "Overdue"
+    if next_service_date == today:
+        return "Due Today"
     if next_service_date <= today + timedelta(days=14):
         return "Due Soon"
     return "On Schedule"
@@ -65,7 +67,7 @@ def _enrich(eq: Equipment) -> dict:
         "next_service_date": eq.next_service_date,
         "service_type": eq.service_type,
         "service_notes": eq.service_notes,
-        "service_status": eq.service_status,
+        "service_status": _derive_service_status(eq.last_service_date, eq.service_interval_days, eq.next_service_date),
         "manufacturer": eq.manufacturer,
         "model_number": eq.model_number,
         "description": eq.description,

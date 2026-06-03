@@ -28,9 +28,18 @@ def get_service_dashboard_stats(
         .filter(Equipment.next_service_date != None, Equipment.next_service_date < today)
         .count()
     )
+    due_today_count = (
+        db.query(Equipment)
+        .filter(Equipment.next_service_date == today)
+        .count()
+    )
     due_soon_count = (
         db.query(Equipment)
-        .filter(Equipment.next_service_date != None, Equipment.next_service_date >= today, Equipment.next_service_date <= soon_cutoff)
+        .filter(
+            Equipment.next_service_date != None,
+            Equipment.next_service_date >= today,
+            Equipment.next_service_date <= soon_cutoff,
+        )
         .count()
     )
     upcoming_count = (
@@ -77,16 +86,33 @@ def get_service_dashboard_stats(
         .all()
     )
 
+    due_today_services = (
+        db.query(
+            Equipment.id,
+            Equipment.equipment_name,
+            Plant.name.label("plant_name"),
+            Equipment.next_service_date,
+        )
+        .outerjoin(Plant, Equipment.plant_id == Plant.id)
+        .filter(Equipment.next_service_date == today)
+        .order_by(Equipment.equipment_name.asc())
+        .limit(20)
+        .all()
+    )
+
     upcoming_services = (
         db.query(
             Equipment.id,
             Equipment.equipment_name,
             Plant.name.label("plant_name"),
             Equipment.next_service_date,
-            Equipment.service_status,
         )
         .outerjoin(Plant, Equipment.plant_id == Plant.id)
-        .filter(Equipment.service_status == "Due Soon")
+        .filter(
+            Equipment.next_service_date != None,
+            Equipment.next_service_date >= today,
+            Equipment.next_service_date <= soon_cutoff,
+        )
         .order_by(Equipment.next_service_date.asc())
         .limit(20)
         .all()
@@ -98,7 +124,6 @@ def get_service_dashboard_stats(
             Equipment.equipment_name,
             Plant.name.label("plant_name"),
             Equipment.next_service_date,
-            Equipment.service_status,
         )
         .outerjoin(Plant, Equipment.plant_id == Plant.id)
         .filter(Equipment.next_service_date != None, Equipment.next_service_date < today)
@@ -109,6 +134,7 @@ def get_service_dashboard_stats(
 
     return {
         "overdue_count": overdue_count,
+        "due_today_count": due_today_count,
         "due_soon_count": due_soon_count,
         "upcoming_count": upcoming_count,
         "not_scheduled_count": not_scheduled_count,
@@ -121,13 +147,23 @@ def get_service_dashboard_stats(
             {"id": p.id, "name": p.name, "overdue_count": p.overdue_count}
             for p in overdue_by_plant
         ],
+        "due_today_services": [
+            {
+                "id": e.id,
+                "equipment_name": e.equipment_name,
+                "plant_name": e.plant_name,
+                "next_service_date": e.next_service_date,
+                "status": "Due Today",
+            }
+            for e in due_today_services
+        ],
         "upcoming_services": [
             {
                 "id": e.id,
                 "equipment_name": e.equipment_name,
                 "plant_name": e.plant_name,
                 "next_service_date": e.next_service_date,
-                "status": e.service_status,
+                "status": "Due Soon",
             }
             for e in upcoming_services
         ],
@@ -137,7 +173,7 @@ def get_service_dashboard_stats(
                 "equipment_name": e.equipment_name,
                 "plant_name": e.plant_name,
                 "next_service_date": e.next_service_date,
-                "status": e.service_status,
+                "status": "Overdue",
             }
             for e in overdue_services
         ],

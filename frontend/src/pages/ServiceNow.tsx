@@ -326,6 +326,7 @@ function StatusBadge({ status }: { status: string }) {
 function ServiceStatusBadge({ status }: { status: string }) {
   const cls =
     status === 'Overdue'    ? 'bg-red-100 text-red-800' :
+    status === 'Due Today'  ? 'bg-orange-100 text-orange-800' :
     status === 'Due Soon'   ? 'bg-yellow-100 text-yellow-800' :
     status === 'On Schedule'? 'bg-green-100 text-green-800' :
                               'bg-gray-100 text-gray-600'
@@ -347,6 +348,8 @@ export default function ServiceNow() {
   const [dueEquipment, setDueEquipment] = useState<DueEquipment[]>([])
   const [dueSearch, setDueSearch] = useState('')
   const [duePlantId, setDuePlantId] = useState<number | null>(null)
+  const [dueStatusFilter, setDueStatusFilter] = useState('')
+  const [duePage, setDuePage] = useState(0)
   const [dueLoading, setDueLoading] = useState(false)
 
   // Manual equipment picker (cascading dropdowns)
@@ -361,6 +364,8 @@ export default function ServiceNow() {
   const [jobCardSearch, setJobCardSearch] = useState('')
   const [jobCardStatus, setJobCardStatus] = useState('open')
   const [jobCardsTotal, setJobCardsTotal] = useState(0)
+  const [jobCardsPage, setJobCardsPage] = useState(0)
+  const JC_PAGE_SIZE = 20
 
   // Active job cards lookup — always non-completed, used by equipment row buttons
   const [activeCardsByEquipmentId, setActiveCardsByEquipmentId] = useState<Record<number, ServiceJobCard>>({})
@@ -406,6 +411,7 @@ export default function ServiceNow() {
   }, [])
 
   useEffect(() => { loadDueEquipment() }, [dueSearch, duePlantId])
+  useEffect(() => { setDuePage(0) }, [dueSearch, duePlantId, dueStatusFilter])
 
   useEffect(() => {
     if (manualPlantId) {
@@ -423,7 +429,8 @@ export default function ServiceNow() {
       .then((res) => setManualEquipmentList(res.equipment))
     setManualEquipmentId(null)
   }, [manualPlantId, manualGroupId])
-  useEffect(() => { loadJobCards() }, [jobCardSearch, jobCardStatus])
+  useEffect(() => { setJobCardsPage(0) }, [jobCardSearch, jobCardStatus])
+  useEffect(() => { loadJobCards() }, [jobCardSearch, jobCardStatus, jobCardsPage])
   useEffect(() => { if (activeTab === 'history') loadHistory() }, [activeTab, histPage])
   useEffect(() => {
     if (histPlantId) {
@@ -451,7 +458,8 @@ export default function ServiceNow() {
       const res = await getJobCards({
         status: jobCardStatus || undefined,
         search: jobCardSearch || undefined,
-        limit: 100,
+        skip: jobCardsPage * JC_PAGE_SIZE,
+        limit: JC_PAGE_SIZE,
       })
       setJobCards(res.job_cards)
       setJobCardsTotal(res.total)
@@ -673,9 +681,18 @@ export default function ServiceNow() {
     }
   }
 
-  const overdueCount = dueEquipment.filter((e) => e.service_status === 'Overdue').length
-  const dueWithin7Count = dueEquipment.filter((e) => e.service_status !== 'Overdue').length
-  const openCardCount = Object.keys(activeCardsByEquipmentId).length
+  const overdueCount    = dueEquipment.filter((e) => e.service_status === 'Overdue').length
+  const dueTodayCount   = dueEquipment.filter((e) => e.service_status === 'Due Today').length
+  const dueWithin7Count = dueEquipment.filter((e) => e.service_status === 'Due Soon' || e.service_status === 'Due Today').length
+  const openCardCount   = Object.keys(activeCardsByEquipmentId).length
+
+  const DUE_PAGE_SIZE = 20
+  const filteredDueEquipment = dueStatusFilter
+    ? dueEquipment.filter((e) => e.service_status === dueStatusFilter)
+    : dueEquipment
+  const dueTotalPages = Math.ceil(filteredDueEquipment.length / DUE_PAGE_SIZE)
+  const pagedDueEquipment = filteredDueEquipment.slice(duePage * DUE_PAGE_SIZE, (duePage + 1) * DUE_PAGE_SIZE)
+  const jcTotalPages = Math.ceil(jobCardsTotal / JC_PAGE_SIZE)
 
   if (loading) {
     return (
@@ -691,30 +708,6 @@ export default function ServiceNow() {
         <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600 flex items-center justify-between">
           {error}
           <button onClick={() => setError('')}><X className="h-4 w-4" /></button>
-        </div>
-      )}
-
-      {overdueCount > 0 && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5" />
-            <div>
-              <div className="font-semibold">{overdueCount} overdue service{overdueCount !== 1 ? 's' : ''}</div>
-              <div className="text-xs text-red-700/80">Please review equipment that is past due.</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {dueWithin7Count > 0 && (
-        <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-yellow-600" />
-            <div>
-              <div className="font-semibold">{dueWithin7Count} service{dueWithin7Count !== 1 ? 's' : ''} due soon</div>
-              <div className="text-xs text-yellow-700/80">Schedule maintenance for equipment approaching its service date.</div>
-            </div>
-          </div>
         </div>
       )}
 
@@ -743,26 +736,33 @@ export default function ServiceNow() {
       {activeTab === 'due' && (
         <div className="space-y-6">
           {/* Summary banners */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="card flex items-center gap-4 py-4">
-              <div className="rounded-full bg-red-100 p-3"><AlertTriangle className="h-5 w-5 text-red-600" /></div>
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <div className="rounded-xl bg-purple-100 border border-purple-200 p-4 flex items-center gap-4">
+              <div className="rounded-full bg-purple-200 p-3"><AlertTriangle className="h-5 w-5 text-purple-700" /></div>
               <div>
-                <p className="text-2xl font-bold text-red-600">{overdueCount}</p>
-                <p className="text-xs text-gray-500">Overdue</p>
+                <p className="text-2xl font-bold text-purple-700">{overdueCount}</p>
+                <p className="text-xs text-purple-500">Overdue</p>
               </div>
             </div>
-            <div className="card flex items-center gap-4 py-4">
-              <div className="rounded-full bg-yellow-100 p-3"><AlertTriangle className="h-5 w-5 text-yellow-600" /></div>
+            <div className="rounded-xl bg-red-100 border border-red-200 p-4 flex items-center gap-4">
+              <div className="rounded-full bg-red-200 p-3"><AlertTriangle className="h-5 w-5 text-red-700" /></div>
               <div>
-                <p className="text-2xl font-bold text-yellow-600">{dueWithin7Count}</p>
-                <p className="text-xs text-gray-500">Due within 7 days</p>
+                <p className="text-2xl font-bold text-red-700">{dueTodayCount}</p>
+                <p className="text-xs text-red-500">Due Today</p>
               </div>
             </div>
-            <div className="card flex items-center gap-4 py-4">
-              <div className="rounded-full bg-blue-100 p-3"><ClipboardList className="h-5 w-5 text-blue-600" /></div>
+            <div className="rounded-xl bg-yellow-100 border border-yellow-200 p-4 flex items-center gap-4">
+              <div className="rounded-full bg-yellow-200 p-3"><AlertTriangle className="h-5 w-5 text-yellow-700" /></div>
               <div>
-                <p className="text-2xl font-bold text-blue-600">{openCardCount}</p>
-                <p className="text-xs text-gray-500">Open Job Cards</p>
+                <p className="text-2xl font-bold text-yellow-700">{dueWithin7Count}</p>
+                <p className="text-xs text-yellow-600">Due within 7 days</p>
+              </div>
+            </div>
+            <div className="rounded-xl bg-blue-100 border border-blue-200 p-4 flex items-center gap-4">
+              <div className="rounded-full bg-blue-200 p-3"><ClipboardList className="h-5 w-5 text-blue-700" /></div>
+              <div>
+                <p className="text-2xl font-bold text-blue-700">{openCardCount}</p>
+                <p className="text-xs text-blue-500">Open Job Cards</p>
               </div>
             </div>
           </div>
@@ -774,18 +774,28 @@ export default function ServiceNow() {
               <div className="flex gap-2 flex-wrap">
                 <input
                   type="text"
-                  className="input text-sm py-1.5 w-48"
+                  className="input text-sm py-1.5 w-40"
                   placeholder="Filter by name…"
                   value={dueSearch}
                   onChange={(e) => setDueSearch(e.target.value)}
                 />
                 <select
-                  className="input text-sm py-1.5 w-44"
+                  className="input text-sm py-1.5 w-40"
                   value={duePlantId ?? ''}
                   onChange={(e) => setDuePlantId(e.target.value ? Number(e.target.value) : null)}
                 >
                   <option value="">All plants</option>
                   {plants.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+                <select
+                  className="input text-sm py-1.5 w-36"
+                  value={dueStatusFilter}
+                  onChange={(e) => setDueStatusFilter(e.target.value)}
+                >
+                  <option value="">All statuses</option>
+                  <option value="Overdue">Overdue</option>
+                  <option value="Due Today">Due Today</option>
+                  <option value="Due Soon">Due Soon</option>
                 </select>
               </div>
             </div>
@@ -793,6 +803,7 @@ export default function ServiceNow() {
             {dueLoading ? (
               <div className="flex h-24 items-center justify-center"><LoadingSpinner /></div>
             ) : (
+              <>
               <div className="table-container">
                 <table className="table">
                   <thead>
@@ -807,7 +818,7 @@ export default function ServiceNow() {
                     </tr>
                   </thead>
                   <tbody>
-                    {dueEquipment.map((eq) => (
+                    {pagedDueEquipment.map((eq) => (
                       <tr key={eq.id}>
                         <td>
                           <div className="font-medium">{eq.equipment_name}</div>
@@ -822,7 +833,7 @@ export default function ServiceNow() {
                           {activeCardsByEquipmentId[eq.id] ? (
                             <button
                               onClick={() => openViewModalWithComplete(activeCardsByEquipmentId[eq.id])}
-                              className="btn-sm flex items-center gap-1.5 rounded px-2.5 py-1.5 text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition-colors"
+                              className="w-32 justify-center btn-sm flex items-center gap-1.5 rounded px-2.5 py-1.5 text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition-colors"
                             >
                               <Check className="h-3.5 w-3.5" />
                               Mark Complete
@@ -830,21 +841,38 @@ export default function ServiceNow() {
                           ) : (
                             <button
                               onClick={() => openCreateModal(eq)}
-                              className="btn-primary btn-sm flex items-center gap-1.5"
+                              className="w-32 justify-center btn-sm flex items-center gap-1.5 rounded px-2.5 py-1.5 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors"
                             >
                               <Plus className="h-3.5 w-3.5" />
-                              Service
+                              Service Now
                             </button>
                           )}
                         </td>
                       </tr>
                     ))}
-                    {dueEquipment.length === 0 && (
-                      <tr><td colSpan={7} className="text-center text-gray-400 py-8">No equipment overdue or due within 7 days</td></tr>
+                    {filteredDueEquipment.length === 0 && (
+                      <tr><td colSpan={7} className="text-center text-gray-400 py-8">No equipment found</td></tr>
                     )}
                   </tbody>
                 </table>
               </div>
+              {dueTotalPages > 1 && (
+                <div className="flex items-center justify-between mt-2">
+                  <p className="text-sm text-gray-500">
+                    Showing {duePage * DUE_PAGE_SIZE + 1}–{Math.min((duePage + 1) * DUE_PAGE_SIZE, filteredDueEquipment.length)} of {filteredDueEquipment.length}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button className="btn-secondary btn-sm" disabled={duePage === 0} onClick={() => setDuePage((p) => p - 1)}>
+                      <ChevronLeft className="h-4 w-4" />Previous
+                    </button>
+                    <span className="text-sm text-gray-600">{duePage + 1} / {dueTotalPages}</span>
+                    <button className="btn-secondary btn-sm" disabled={duePage >= dueTotalPages - 1} onClick={() => setDuePage((p) => p + 1)}>
+                      Next<ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+              </>
             )}
           </div>
 
@@ -1006,6 +1034,22 @@ export default function ServiceNow() {
                 </tbody>
               </table>
             </div>
+            {jcTotalPages > 1 && (
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-500">
+                  Showing {jobCardsPage * JC_PAGE_SIZE + 1}–{Math.min((jobCardsPage + 1) * JC_PAGE_SIZE, jobCardsTotal)} of {jobCardsTotal}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button className="btn-secondary btn-sm" disabled={jobCardsPage === 0} onClick={() => setJobCardsPage((p) => p - 1)}>
+                    <ChevronLeft className="h-4 w-4" />Previous
+                  </button>
+                  <span className="text-sm text-gray-600">{jobCardsPage + 1} / {jcTotalPages}</span>
+                  <button className="btn-secondary btn-sm" disabled={jobCardsPage >= jcTotalPages - 1} onClick={() => setJobCardsPage((p) => p + 1)}>
+                    Next<ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

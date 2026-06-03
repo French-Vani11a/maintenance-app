@@ -60,10 +60,11 @@ export default function NotificationBell() {
     }
   }
 
-  const overdueCount  = stats?.overdue_count  ?? 0
+  const overdueCount  = stats?.overdue_count   ?? 0
+  const dueTodayCount = stats?.due_today_count ?? 0
   const dueSoonCount  = stats?.due_soon_count  ?? 0
   const openCardCount = activeCards.length
-  const totalCount    = overdueCount + dueSoonCount + openCardCount
+  const totalCount    = overdueCount + dueTodayCount + dueSoonCount + openCardCount
 
   return (
     <div className="relative" ref={panelRef}>
@@ -102,18 +103,42 @@ export default function NotificationBell() {
               {/* Overdue services */}
               {overdueCount > 0 && (
                 <div>
-                  <div className="flex items-center gap-2 bg-red-50 px-4 py-2">
-                    <AlertTriangle className="h-3.5 w-3.5 text-red-600 shrink-0" />
-                    <span className="text-xs font-semibold uppercase tracking-wide text-red-700">
+                  <div className="flex items-center gap-2 bg-purple-50 px-4 py-2">
+                    <AlertTriangle className="h-3.5 w-3.5 text-purple-600 shrink-0" />
+                    <span className="text-xs font-semibold uppercase tracking-wide text-purple-700">
                       Overdue Services ({overdueCount})
                     </span>
                   </div>
                   {overdueCount > 5 ? (
-                    <button onClick={() => { setOpen(false); navigate('/service-now') }} className="w-full px-4 py-3 text-left text-xs font-medium text-red-600 hover:bg-red-50 transition-colors underline underline-offset-2">
+                    <button onClick={() => { setOpen(false); navigate('/service-now') }} className="w-full px-4 py-3 text-left text-xs font-medium text-purple-600 bg-purple-50 hover:bg-purple-100 transition-colors underline underline-offset-2">
                       More than 5 overdue — click here to view all
                     </button>
                   ) : (stats!.overdue_services ?? []).map((item) => (
-                    <button key={item.id} onClick={() => goToEquipment(item.id)} className="w-full px-4 py-2.5 text-left hover:bg-red-50 transition-colors">
+                    <button key={item.id} onClick={() => goToEquipment(item.id)} className="w-full px-4 py-2.5 text-left bg-purple-50 hover:bg-purple-100 transition-colors">
+                      <p className="text-sm font-medium text-gray-800">{item.equipment_name}</p>
+                      <p className="text-xs text-gray-500">
+                        {item.plant_name ?? '—'} · Due: <span className="text-purple-600">{item.next_service_date ?? '—'}</span>
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Due Today */}
+              {dueTodayCount > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 bg-red-50 px-4 py-2">
+                    <AlertTriangle className="h-3.5 w-3.5 text-red-600 shrink-0" />
+                    <span className="text-xs font-semibold uppercase tracking-wide text-red-700">
+                      Due Today ({dueTodayCount})
+                    </span>
+                  </div>
+                  {dueTodayCount > 5 ? (
+                    <button onClick={() => { setOpen(false); navigate('/service-now') }} className="w-full px-4 py-3 text-left text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 transition-colors underline underline-offset-2">
+                      More than 5 due today — click here to view all
+                    </button>
+                  ) : (stats!.due_today_services ?? []).map((item) => (
+                    <button key={item.id} onClick={() => goToEquipment(item.id)} className="w-full px-4 py-2.5 text-left bg-red-50 hover:bg-red-100 transition-colors">
                       <p className="text-sm font-medium text-gray-800">{item.equipment_name}</p>
                       <p className="text-xs text-gray-500">
                         {item.plant_name ?? '—'} · Due: <span className="text-red-600">{item.next_service_date ?? '—'}</span>
@@ -133,11 +158,11 @@ export default function NotificationBell() {
                     </span>
                   </div>
                   {dueSoonCount > 5 ? (
-                    <button onClick={() => { setOpen(false); navigate('/service-now') }} className="w-full px-4 py-3 text-left text-xs font-medium text-yellow-700 hover:bg-yellow-50 transition-colors underline underline-offset-2">
+                    <button onClick={() => { setOpen(false); navigate('/service-now') }} className="w-full px-4 py-3 text-left text-xs font-medium text-yellow-700 bg-yellow-50 hover:bg-yellow-100 transition-colors underline underline-offset-2">
                       More than 5 due soon — click here to view all
                     </button>
                   ) : (stats!.upcoming_services ?? []).map((item) => (
-                    <button key={item.id} onClick={() => goToEquipment(item.id)} className="w-full px-4 py-2.5 text-left hover:bg-yellow-50 transition-colors">
+                    <button key={item.id} onClick={() => goToEquipment(item.id)} className="w-full px-4 py-2.5 text-left bg-yellow-50 hover:bg-yellow-100 transition-colors">
                       <p className="text-sm font-medium text-gray-800">{item.equipment_name}</p>
                       <p className="text-xs text-gray-500">
                         {item.plant_name ?? '—'} · Due: <span className="text-yellow-700">{item.next_service_date ?? '—'}</span>
@@ -157,11 +182,11 @@ export default function NotificationBell() {
                     </span>
                   </div>
                   {openCardCount > 5 ? (
-                    <button onClick={() => { setOpen(false); navigate('/service-now') }} className="w-full px-4 py-3 text-left text-xs font-medium text-blue-600 hover:bg-blue-50 transition-colors underline underline-offset-2">
+                    <button onClick={() => { setOpen(false); navigate('/service-now') }} className="w-full px-4 py-3 text-left text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors underline underline-offset-2">
                       More than 5 open job cards — click here to view all
                     </button>
                   ) : activeCards.map((jc) => (
-                    <button key={jc.id} onClick={() => goToJobCard(jc)} className="w-full px-4 py-2.5 text-left hover:bg-blue-50 transition-colors">
+                    <button key={jc.id} onClick={() => goToJobCard(jc)} className="w-full px-4 py-2.5 text-left bg-blue-50 hover:bg-blue-100 transition-colors">
                       <p className="text-sm font-medium text-gray-800">{jc.job_card_number}</p>
                       <p className="text-xs text-gray-500">
                         {jc.equipment_name ?? '—'} · {jc.assigned_artisan ?? 'Unassigned'}
@@ -172,7 +197,7 @@ export default function NotificationBell() {
               )}
 
               {/* Empty state */}
-              {overdueCount === 0 && dueSoonCount === 0 && openCardCount === 0 && (
+              {overdueCount === 0 && dueTodayCount === 0 && dueSoonCount === 0 && openCardCount === 0 && (
                 <div className="flex flex-col items-center justify-center py-10 text-gray-400">
                   <Bell className="h-8 w-8 mb-2 text-gray-300" />
                   <p className="text-sm">All clear — no notifications</p>
