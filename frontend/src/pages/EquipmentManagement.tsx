@@ -838,7 +838,6 @@ export default function EquipmentManagement() {
                 <th>Next Service</th>
                 <th>Service Status</th>
                 <th>Type</th>
-                <th>Notes</th>
               </tr>
             </thead>
             <tbody>
@@ -864,12 +863,11 @@ export default function EquipmentManagement() {
                     </span>
                   </td>
                   <td className="text-sm text-gray-600">{eq.service_type || '—'}</td>
-                  <td className="text-sm text-gray-600 max-w-[160px] truncate">{eq.service_notes || '—'}</td>
                 </tr>
               ))}
               {visibleEquipment.length === 0 && (
                 <tr>
-                  <td colSpan={13} className="text-center text-gray-400 py-8">
+                  <td colSpan={12} className="text-center text-gray-400 py-8">
                     No equipment found
                   </td>
                 </tr>
