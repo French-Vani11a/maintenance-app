@@ -700,6 +700,18 @@ export default function ServiceNow() {
         </div>
       )}
 
+      {dueWithin7Count > 0 && (
+        <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-yellow-600" />
+            <div>
+              <div className="font-semibold">{dueWithin7Count} service{dueWithin7Count !== 1 ? 's' : ''} due soon</div>
+              <div className="text-xs text-yellow-700/80">Schedule maintenance for equipment approaching its service date.</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200">
         {([
