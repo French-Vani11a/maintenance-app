@@ -108,7 +108,11 @@ export default function NotificationBell() {
                       Overdue Services ({overdueCount})
                     </span>
                   </div>
-                  {(stats!.overdue_services ?? []).slice(0, 5).map((item) => (
+                  {overdueCount > 5 ? (
+                    <button onClick={() => { setOpen(false); navigate('/service-now') }} className="w-full px-4 py-3 text-left text-xs font-medium text-red-600 hover:bg-red-50 transition-colors underline underline-offset-2">
+                      More than 5 overdue — click here to view all
+                    </button>
+                  ) : (stats!.overdue_services ?? []).map((item) => (
                     <button key={item.id} onClick={() => goToEquipment(item.id)} className="w-full px-4 py-2.5 text-left hover:bg-red-50 transition-colors">
                       <p className="text-sm font-medium text-gray-800">{item.equipment_name}</p>
                       <p className="text-xs text-gray-500">
@@ -116,11 +120,6 @@ export default function NotificationBell() {
                       </p>
                     </button>
                   ))}
-                  {overdueCount > 5 && (
-                    <p className="px-4 py-1.5 text-xs font-medium text-red-600">
-                      +{overdueCount - 5} more overdue
-                    </p>
-                  )}
                 </div>
               )}
 
@@ -133,7 +132,11 @@ export default function NotificationBell() {
                       Due Soon ({dueSoonCount})
                     </span>
                   </div>
-                  {(stats!.upcoming_services ?? []).slice(0, 5).map((item) => (
+                  {dueSoonCount > 5 ? (
+                    <button onClick={() => { setOpen(false); navigate('/service-now') }} className="w-full px-4 py-3 text-left text-xs font-medium text-yellow-700 hover:bg-yellow-50 transition-colors underline underline-offset-2">
+                      More than 5 due soon — click here to view all
+                    </button>
+                  ) : (stats!.upcoming_services ?? []).map((item) => (
                     <button key={item.id} onClick={() => goToEquipment(item.id)} className="w-full px-4 py-2.5 text-left hover:bg-yellow-50 transition-colors">
                       <p className="text-sm font-medium text-gray-800">{item.equipment_name}</p>
                       <p className="text-xs text-gray-500">
@@ -141,11 +144,6 @@ export default function NotificationBell() {
                       </p>
                     </button>
                   ))}
-                  {dueSoonCount > 5 && (
-                    <p className="px-4 py-1.5 text-xs font-medium text-yellow-700">
-                      +{dueSoonCount - 5} more due soon
-                    </p>
-                  )}
                 </div>
               )}
 
@@ -158,7 +156,11 @@ export default function NotificationBell() {
                       Open Job Cards ({openCardCount})
                     </span>
                   </div>
-                  {activeCards.slice(0, 5).map((jc) => (
+                  {openCardCount > 5 ? (
+                    <button onClick={() => { setOpen(false); navigate('/service-now') }} className="w-full px-4 py-3 text-left text-xs font-medium text-blue-600 hover:bg-blue-50 transition-colors underline underline-offset-2">
+                      More than 5 open job cards — click here to view all
+                    </button>
+                  ) : activeCards.map((jc) => (
                     <button key={jc.id} onClick={() => goToJobCard(jc)} className="w-full px-4 py-2.5 text-left hover:bg-blue-50 transition-colors">
                       <p className="text-sm font-medium text-gray-800">{jc.job_card_number}</p>
                       <p className="text-xs text-gray-500">
@@ -166,11 +168,6 @@ export default function NotificationBell() {
                       </p>
                     </button>
                   ))}
-                  {openCardCount > 5 && (
-                    <p className="px-4 py-1.5 text-xs font-medium text-blue-600">
-                      +{openCardCount - 5} more open
-                    </p>
-                  )}
                 </div>
               )}
 
