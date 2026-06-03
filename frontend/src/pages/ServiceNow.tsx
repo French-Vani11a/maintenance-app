@@ -20,15 +20,16 @@ import {
   exportServiceHistoryCsv,
   getDueEquipment,
   getEnrichedServiceHistory,
+  getEquipment,
   getEquipmentGroups,
   getJobCards,
   getPlants,
-  searchAllEquipment,
   updateJobCard,
 } from '../services/api'
 import type {
   DueEquipment,
   EnrichedServiceHistory,
+  Equipment,
   EquipmentGroup,
   Plant,
   ServiceJobCard,
@@ -172,10 +173,12 @@ export default function ServiceNow() {
   const [duePlantId, setDuePlantId] = useState<number | null>(null)
   const [dueLoading, setDueLoading] = useState(false)
 
-  // Manual search for any equipment
-  const [manualSearch, setManualSearch] = useState('')
-  const [manualResults, setManualResults] = useState<DueEquipment[]>([])
-  const [manualSearching, setManualSearching] = useState(false)
+  // Manual equipment picker (cascading dropdowns)
+  const [manualPlantId, setManualPlantId] = useState<number | null>(null)
+  const [manualGroupId, setManualGroupId] = useState<number | null>(null)
+  const [manualGroups, setManualGroups] = useState<EquipmentGroup[]>([])
+  const [manualEquipmentList, setManualEquipmentList] = useState<Equipment[]>([])
+  const [manualEquipmentId, setManualEquipmentId] = useState<number | null>(null)
 
   // Open job cards (table display — filtered by user-selected status)
   const [jobCards, setJobCards] = useState<ServiceJobCard[]>([])
@@ -223,6 +226,23 @@ export default function ServiceNow() {
   }, [])
 
   useEffect(() => { loadDueEquipment() }, [dueSearch, duePlantId])
+
+  useEffect(() => {
+    if (manualPlantId) {
+      getEquipmentGroups(manualPlantId).then(setManualGroups)
+    } else {
+      setManualGroups([])
+    }
+    setManualGroupId(null)
+    setManualEquipmentId(null)
+  }, [manualPlantId])
+
+  useEffect(() => {
+    if (!manualPlantId) { setManualEquipmentList([]); return }
+    getEquipment({ plant_id: manualPlantId, equipment_group_id: manualGroupId || undefined, limit: 1000 })
+      .then((res) => setManualEquipmentList(res.equipment))
+    setManualEquipmentId(null)
+  }, [manualPlantId, manualGroupId])
   useEffect(() => { loadJobCards() }, [jobCardSearch, jobCardStatus])
   useEffect(() => { if (activeTab === 'history') loadHistory() }, [activeTab, histPage])
   useEffect(() => {
@@ -321,20 +341,7 @@ export default function ServiceNow() {
     }
   }
 
-  async function handleManualSearch() {
-    if (!manualSearch.trim()) return
-    setManualSearching(true)
-    try {
-      const results = await searchAllEquipment(manualSearch.trim(), duePlantId || undefined)
-      setManualResults(results)
-    } catch (e: any) {
-      setError(e?.response?.data?.detail || 'Search failed')
-    } finally {
-      setManualSearching(false)
-    }
-  }
-
-  function openCreateModal(eq: DueEquipment) {
+  function openCreateModal(eq: DueEquipment | Equipment) {
     setJcForm({
       ...EMPTY_JC_FORM,
       equipment_id: eq.id,
@@ -395,8 +402,7 @@ export default function ServiceNow() {
     try {
       await createJobCard(buildJobCardPayload())
       closeModal()
-      setManualResults([])
-      setManualSearch('')
+      setManualEquipmentId(null)
       await Promise.all([loadDueEquipment(), loadJobCards(), loadActiveCards()])
     } catch (e: any) {
       setJcError(e?.response?.data?.detail || 'Failed to save job card')
@@ -412,8 +418,7 @@ export default function ServiceNow() {
     try {
       const card = await createJobCard(buildJobCardPayload())
       closeModal()
-      setManualResults([])
-      setManualSearch('')
+      setManualEquipmentId(null)
       printJobCard(card)
       await Promise.all([loadDueEquipment(), loadJobCards(), loadActiveCards()])
     } catch (e: any) {
@@ -647,67 +652,94 @@ export default function ServiceNow() {
             )}
           </div>
 
-          {/* Manual equipment search */}
+          {/* Manual equipment picker */}
           <div className="card space-y-4">
             <h2 className="font-semibold text-gray-700">Create Job Card for Any Equipment</h2>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                className="input text-sm flex-1"
-                placeholder="Search equipment by name…"
-                value={manualSearch}
-                onChange={(e) => setManualSearch(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleManualSearch()}
-              />
-              <button onClick={handleManualSearch} className="btn-secondary btn-sm flex items-center gap-1.5" disabled={manualSearching}>
-                {manualSearching ? <LoadingSpinner size="sm" /> : <Search className="h-4 w-4" />}
-                Search
-              </button>
-            </div>
-            {manualResults.length > 0 && (
-              <div className="table-container">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Equipment</th>
-                      <th>Plant</th>
-                      <th>Service Status</th>
-                      <th>Next Due</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {manualResults.map((eq) => (
-                      <tr key={eq.id}>
-                        <td>
-                          <div className="font-medium">{eq.equipment_name}</div>
-                          {eq.equipment_code && <div className="text-xs font-mono text-gray-400">{eq.equipment_code}</div>}
-                        </td>
-                        <td className="text-gray-500">{eq.plant_name ?? '—'}</td>
-                        <td><ServiceStatusBadge status={eq.service_status ?? 'Not Scheduled'} /></td>
-                        <td className="text-sm text-gray-600">{eq.next_service_date ?? '—'}</td>
-                        <td>
-                          {activeCardsByEquipmentId[eq.id] ? (
-                            <button
-                              onClick={() => openViewModalWithComplete(activeCardsByEquipmentId[eq.id])}
-                              className="btn-sm flex items-center gap-1.5 rounded px-2.5 py-1.5 text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition-colors"
-                            >
-                              <Check className="h-3.5 w-3.5" />
-                              Mark Complete
-                            </button>
-                          ) : (
-                            <button onClick={() => openCreateModal(eq)} className="btn-primary btn-sm flex items-center gap-1.5">
-                              <Plus className="h-3.5 w-3.5" />
-                              Service
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="space-y-1">
+                <label className="label">Plant</label>
+                <select
+                  className="input"
+                  value={manualPlantId ?? ''}
+                  onChange={(e) => setManualPlantId(e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">Select plant…</option>
+                  {plants.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
               </div>
-            )}
+              <div className="space-y-1">
+                <label className="label">Group</label>
+                <select
+                  className="input"
+                  value={manualGroupId ?? ''}
+                  disabled={!manualPlantId}
+                  onChange={(e) => setManualGroupId(e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">{manualPlantId ? 'All groups' : 'Select a plant first'}</option>
+                  {manualGroups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="label">Equipment</label>
+                <select
+                  className="input"
+                  value={manualEquipmentId ?? ''}
+                  disabled={!manualPlantId}
+                  onChange={(e) => setManualEquipmentId(e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">{manualPlantId ? 'Select equipment…' : 'Select a plant first'}</option>
+                  {manualEquipmentList.map((eq) => (
+                    <option key={eq.id} value={eq.id}>
+                      {eq.equipment_name}{eq.equipment_code ? ` (${eq.equipment_code})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {(() => {
+              const eq = manualEquipmentList.find((e) => e.id === manualEquipmentId) ?? null
+              if (!eq) return null
+              return (
+                <div className="flex flex-col gap-3 rounded-lg bg-gray-50 border border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-wrap items-center gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-500">Status: </span>
+                      <ServiceStatusBadge status={eq.service_status ?? 'Not Scheduled'} />
+                    </div>
+                    {eq.next_service_date && (
+                      <div>
+                        <span className="text-gray-500">Next due: </span>
+                        <span className="text-gray-700">{eq.next_service_date}</span>
+                      </div>
+                    )}
+                    {eq.last_service_date && (
+                      <div>
+                        <span className="text-gray-500">Last service: </span>
+                        <span className="text-gray-700">{eq.last_service_date}</span>
+                      </div>
+                    )}
+                  </div>
+                  {activeCardsByEquipmentId[eq.id] ? (
+                    <button
+                      onClick={() => openViewModalWithComplete(activeCardsByEquipmentId[eq.id])}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded bg-green-600 text-white hover:bg-green-700 transition-colors shrink-0"
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                      Mark Complete
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => openCreateModal(eq)}
+                      className="btn-primary btn-sm flex items-center gap-1.5 shrink-0"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Service
+                    </button>
+                  )}
+                </div>
+              )
+            })()}
           </div>
 
           {/* Open job cards table */}
