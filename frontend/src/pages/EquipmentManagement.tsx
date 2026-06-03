@@ -26,7 +26,7 @@ import type {
   ServiceJobCard,
 } from '../types'
 import LoadingSpinner from '../components/LoadingSpinner'
-import ListInput, { serializeListField } from '../components/ListInput'
+import ListInput, { parseListField, serializeListField } from '../components/ListInput'
 
 const EMPTY_EQUIP_FORM = {
   name: '',
@@ -107,8 +107,8 @@ export default function EquipmentManagement() {
   const [completeForm, setCompleteForm] = useState({
     service_date: '',
     performed_by: '',
-    work_done: '',
-    parts_used: '',
+    work_done: [] as string[],
+    parts_used: [] as string[],
     completion_notes: '',
   })
   const [completing, setCompleting] = useState(false)
@@ -118,7 +118,7 @@ export default function EquipmentManagement() {
       setShowServiceForm(false)
       setServiceFormSuccess('')
       setEquipmentActiveCard(null)
-      setCompleteForm({ service_date: '', performed_by: '', work_done: '', parts_used: '', completion_notes: '' })
+      setCompleteForm({ service_date: '', performed_by: '', work_done: [], parts_used: [], completion_notes: '' })
     }
   }, [detailsModal])
 
@@ -375,12 +375,12 @@ export default function EquipmentManagement() {
       await completeJobCard(equipmentActiveCard.id, {
         service_date: completeForm.service_date,
         performed_by: completeForm.performed_by || null,
-        work_done: completeForm.work_done || null,
-        parts_used: completeForm.parts_used || null,
+        work_done: serializeListField(completeForm.work_done),
+        parts_used: serializeListField(completeForm.parts_used),
         completion_notes: completeForm.completion_notes || null,
       })
       setShowServiceForm(false)
-      setCompleteForm({ service_date: '', performed_by: '', work_done: '', parts_used: '', completion_notes: '' })
+      setCompleteForm({ service_date: '', performed_by: '', work_done: [], parts_used: [], completion_notes: '' })
       setServiceFormSuccess('Service completed and history recorded.')
       // Refresh equipment details (updated service dates) + clear active card
       const [updated] = await Promise.all([
@@ -934,7 +934,17 @@ export default function EquipmentManagement() {
                         {equipmentActiveCard ? (
                           <button
                             title={`Mark complete — ${equipmentActiveCard.job_card_number}`}
-                            onClick={() => { setShowServiceForm(true); setServiceFormSuccess('') }}
+                            onClick={() => {
+                              setShowServiceForm(true)
+                              setServiceFormSuccess('')
+                              setCompleteForm({
+                                service_date: '',
+                                performed_by: '',
+                                work_done: parseListField(equipmentActiveCard.work_to_be_done),
+                                parts_used: parseListField(equipmentActiveCard.parts_required),
+                                completion_notes: '',
+                              })
+                            }}
                             className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded bg-green-600 text-white hover:bg-green-700 transition-colors"
                           >
                             <Check className="h-3.5 w-3.5" />
@@ -1155,15 +1165,29 @@ export default function EquipmentManagement() {
                         </div>
                         <div className="space-y-1">
                           <label className="label">Performed By</label>
-                          <input type="text" className="input" value={completeForm.performed_by} onChange={(e) => setCompleteForm((f) => ({ ...f, performed_by: e.target.value }))} />
+                          <input
+                            type="text"
+                            className="input"
+                            placeholder={equipmentActiveCard?.assigned_artisan || ''}
+                            value={completeForm.performed_by}
+                            onChange={(e) => setCompleteForm((f) => ({ ...f, performed_by: e.target.value }))}
+                          />
                         </div>
                         <div className="sm:col-span-2 space-y-1">
                           <label className="label">Work Done</label>
-                          <textarea className="input resize-none" rows={2} value={completeForm.work_done} onChange={(e) => setCompleteForm((f) => ({ ...f, work_done: e.target.value }))} />
+                          <ListInput
+                            items={completeForm.work_done}
+                            onChange={(items) => setCompleteForm((f) => ({ ...f, work_done: items }))}
+                            placeholder="Add completed task…"
+                          />
                         </div>
                         <div className="sm:col-span-2 space-y-1">
                           <label className="label">Parts Used</label>
-                          <textarea className="input resize-none" rows={2} value={completeForm.parts_used} onChange={(e) => setCompleteForm((f) => ({ ...f, parts_used: e.target.value }))} />
+                          <ListInput
+                            items={completeForm.parts_used}
+                            onChange={(items) => setCompleteForm((f) => ({ ...f, parts_used: items }))}
+                            placeholder="Add part used…"
+                          />
                         </div>
                         <div className="sm:col-span-2 space-y-1">
                           <label className="label">Completion Notes</label>

@@ -40,61 +40,235 @@ import ListInput, { parseListField, serializeListField } from '../components/Lis
 // ── Print helper ──────────────────────────────────────────────────────────────
 
 function printJobCard(card: ServiceJobCard) {
-  const priorityColor: Record<string, string> = {
-    critical: '#dc2626',
-    high: '#ea580c',
-    medium: '#d97706',
-    low: '#16a34a',
-  }
-  const color = priorityColor[card.priority] ?? '#6b7280'
+  const logoUrl = `${window.location.origin}/jblogo.jpg`
+  const now = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const generatedDate = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`
+
   const workList = parseListField(card.work_to_be_done)
   const partsList = parseListField(card.parts_required)
-  const listHtml = (items: string[]) =>
-    items.length === 0 ? '—' : `<ul style="margin:4px 0 0 16px;padding:0">${items.map((i) => `<li>${i}</li>`).join('')}</ul>`
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/>
+
+  const priorityColor: Record<string, string> = {
+    critical: '#dc2626', high: '#ea580c', medium: '#d97706', low: '#16a34a',
+  }
+  const pColor = priorityColor[card.priority] ?? '#6b7280'
+
+  const CB = '&#9744;'
+
+  const blankWorkRows = [1, 2, 3].map(n =>
+    `<tr><td class="nc">${n}</td><td class="td">&nbsp;</td><td class="cc">${CB}</td></tr>`
+  ).join('')
+
+  const workRows = workList.length > 0
+    ? workList.map((item, i) =>
+        `<tr><td class="nc">${i + 1}</td><td class="td">${item}</td><td class="cc">${CB}</td></tr>`
+      ).join('')
+    : blankWorkRows
+
+  const blankPartsRows = [1, 2, 3].map(() =>
+    `<tr><td class="td">&nbsp;</td><td class="cc">${CB}</td></tr>`
+  ).join('')
+
+  const partsRows = partsList.length > 0
+    ? partsList.map(item =>
+        `<tr><td class="td">${item}</td><td class="cc">${CB}</td></tr>`
+      ).join('')
+    : blankPartsRows
+
+  const statusLabel = card.status === 'open' ? 'Open / Assigned'
+    : card.status === 'in-progress' ? 'In Progress'
+    : card.status === 'completed' ? 'Completed'
+    : card.status ?? '—'
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
 <title>Job Card ${card.job_card_number}</title>
 <style>
-  body{font-family:Arial,sans-serif;padding:32px;color:#111;font-size:14px}
-  h1{font-size:22px;margin:0}
-  .sub{color:#666;font-size:13px;margin-bottom:24px;margin-top:4px}
-  hr{border:none;border-top:1px solid #e5e7eb;margin:20px 0}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 32px}
-  .field{margin-bottom:4px}
-  .label{font-size:10px;text-transform:uppercase;color:#888;font-weight:700;letter-spacing:.05em}
-  .value{margin-top:2px;font-size:14px}
-  .full{grid-column:span 2}
-  .badge{display:inline-block;padding:2px 10px;border-radius:9999px;font-size:12px;font-weight:600}
-  .sigs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:32px;margin-top:48px}
-  .sig{border-top:1px solid #000;padding-top:6px;font-size:11px;color:#666}
-  @media print{body{padding:16px}}
-</style></head><body>
-<h1>Service Job Card</h1>
-<div class="sub">${card.job_card_number} &nbsp;|&nbsp; Created ${card.created_at ? new Date(card.created_at).toLocaleDateString() : '—'} &nbsp;|&nbsp; By: ${card.created_by_user_name ?? '—'}</div>
-<hr/>
-<div class="grid">
-  <div class="field"><div class="label">Equipment</div><div class="value">${card.equipment_name ?? '—'}${card.equipment_code ? ' (' + card.equipment_code + ')' : ''}</div></div>
-  <div class="field"><div class="label">Plant</div><div class="value">${card.plant_name ?? '—'}</div></div>
-  <div class="field"><div class="label">Service Type</div><div class="value">${card.service_type ?? '—'}</div></div>
-  <div class="field"><div class="label">Start Date</div><div class="value">${card.start_date ?? '—'}</div></div>
-  <div class="field"><div class="label">Due Date</div><div class="value">${card.due_date ?? '—'}</div></div>
-  <div class="field"><div class="label">Priority</div><div class="value"><span class="badge" style="background:${color}22;color:${color}">${card.priority.toUpperCase()}</span></div></div>
-  <div class="field"><div class="label">Assigned Artisan</div><div class="value">${card.assigned_artisan ?? '—'}</div></div>
-  <div class="field"><div class="label">Assigned By</div><div class="value">${card.assigned_by ?? '—'}</div></div>
-  <div class="field full"><div class="label">Service Description</div><div class="value">${card.service_description ?? '—'}</div></div>
-  <div class="field full"><div class="label">Work To Be Done</div><div class="value">${listHtml(workList)}</div></div>
-  <div class="field full"><div class="label">Parts Required</div><div class="value">${listHtml(partsList)}</div></div>
-  <div class="field full"><div class="label">Notes</div><div class="value">${card.notes ?? '—'}</div></div>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#1a1a1a;background:#fff;padding:18mm 16mm 20mm}
+@page{size:A4 portrait;margin:12mm 14mm 16mm}
+@media print{body{padding:0}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}
+
+/* Header */
+.hdr{display:flex;align-items:flex-start;justify-content:space-between;border-bottom:2.5px solid #1e293b;padding-bottom:14px;margin-bottom:18px;gap:16px}
+.hdr-logo{height:60px;width:auto;object-fit:contain;flex-shrink:0}
+.hdr-center{flex:1;display:flex;flex-direction:column;justify-content:center}
+.hdr-sub{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px}
+.barcode{font-family:'Courier New',monospace;font-size:28px;letter-spacing:-3px;color:#1e293b;line-height:1}
+.hdr-right{text-align:right;flex-shrink:0;min-width:175px}
+.jc-num{font-size:20px;font-weight:900;color:#ea580c;letter-spacing:0.5px}
+.gen-date{font-size:10px;color:#64748b;margin-top:5px}
+.gen-by{font-size:10px;color:#94a3b8;margin-top:2px}
+
+/* Section headers */
+.sh{background:#1e293b;color:#fff;padding:6px 10px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-top:18px}
+.sh2{background:#374151;color:#fff;padding:6px 10px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-top:18px}
+
+/* General info table */
+.it{width:100%;border-collapse:collapse}
+.it td{border:1px solid #cbd5e1;padding:7px 10px;font-size:11px;vertical-align:middle}
+.lbl{background:#f1f5f9;color:#374151;font-weight:700;width:20%;white-space:nowrap}
+.val{color:#1a1a1a}
+.pval{font-weight:700;color:${pColor}}
+
+/* Safety */
+.safety{border:2px solid #ea580c;border-radius:3px;background:#fff7ed;padding:11px 14px;margin-top:16px}
+.safehdr{color:#c2410c;font-weight:700;font-size:11.5px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:9px}
+.saferow{font-size:11px;padding:4px 0 4px 10px;border-left:3px solid #fb923c;margin-bottom:5px;color:#1a1a1a}
+.saferow b{color:#9a3412}
+
+/* Description box */
+.dbox{border:1px solid #e2e8f0;padding:8px 10px;font-size:11px;min-height:34px;background:#fafafa;font-style:italic;color:#374151}
+
+/* Checklist table */
+.ct{width:100%;border-collapse:collapse}
+.ct thead tr{background:#334155}
+.ct thead th{color:#fff;padding:6px 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;text-align:left;border:1px solid #475569}
+.ct thead th.cth{text-align:center;width:56px}
+.ct tbody tr:nth-child(even){background:#f8fafc}
+.nc{text-align:center;border:1px solid #d1d5db;padding:7px 5px;font-size:11px;width:34px;color:#64748b;font-weight:600}
+.td{border:1px solid #d1d5db;padding:7px 10px;font-size:11px;min-height:28px}
+.cc{text-align:center;border:1px solid #d1d5db;padding:4px;font-size:19px;width:56px;color:#374151;border-left:2px solid #94a3b8}
+
+/* Completion */
+.compbox{border:1px solid #cbd5e1;padding:14px 16px}
+.trow{display:flex;gap:28px;margin-bottom:20px}
+.tf{flex:1}
+.tlbl{font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:20px;letter-spacing:0.4px}
+.tline{border-bottom:1px solid #1e293b}
+.obslbl{font-size:11px;font-weight:700;color:#374151;margin-bottom:7px}
+.obsbox{border:1px dashed #cbd5e1;min-height:72px;padding:6px;font-size:11px;color:#cbd5e1}
+
+/* Sign-off */
+.sog{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px}
+.sob{border:1px solid #cbd5e1;padding:12px 14px}
+.sorole{font-size:11px;font-weight:700;color:#1e293b;margin-bottom:22px}
+.soline{border-bottom:1px solid #374151;margin-top:2px;margin-bottom:2px}
+.solabel{font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.3px}
+.sorow{margin-top:18px}
+
+/* Footer */
+.footer{border-top:1.5px solid #1e293b;margin-top:22px;padding-top:8px;text-align:center;font-size:9.5px;color:#94a3b8}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="hdr">
+  <img src="${logoUrl}" alt="Logo" class="hdr-logo" onerror="this.style.display='none'"/>
+  <div class="hdr-center">
+    <div class="hdr-sub">Job Card</div>
+    <div class="barcode">|||| ||||| ||||| |||| ||||</div>
+  </div>
+  <div class="hdr-right">
+    <div class="jc-num">${card.job_card_number}</div>
+    <div class="gen-date">Generated: ${generatedDate}</div>
+    <div class="gen-by">By: ${card.created_by_user_name ?? '—'}</div>
+  </div>
 </div>
-<hr/>
-<div class="sigs">
-  <div class="sig">Prepared By &amp; Date</div>
-  <div class="sig">Technician / Artisan &amp; Date</div>
-  <div class="sig">Supervisor &amp; Date</div>
+
+<!-- 1. GENERAL INFORMATION -->
+<div class="sh">1. General Information</div>
+<table class="it">
+  <tr>
+    <td class="lbl">Work Type / Service Type</td>
+    <td class="val">${card.service_type ?? '—'}</td>
+    <td class="lbl">Priority</td>
+    <td class="val pval">${card.priority.toUpperCase()}</td>
+  </tr>
+  <tr>
+    <td class="lbl">Equipment / Asset</td>
+    <td class="val" colspan="3">${card.equipment_name ?? '—'}${card.equipment_code ? ' <span style="color:#64748b;font-size:10px">('+card.equipment_code+')</span>' : ''}</td>
+  </tr>
+  <tr>
+    <td class="lbl">Plant / Location</td>
+    <td class="val">${card.plant_name ?? '—'}</td>
+    <td class="lbl">Status</td>
+    <td class="val">${statusLabel}</td>
+  </tr>
+  <tr>
+    <td class="lbl">Start Date</td>
+    <td class="val">${card.start_date ?? '—'}</td>
+    <td class="lbl">Due Date</td>
+    <td class="val">${card.due_date ?? '—'}</td>
+  </tr>
+  <tr>
+    <td class="lbl">Issued By / Created By</td>
+    <td class="val">${card.assigned_by ?? card.created_by_user_name ?? '—'}</td>
+    <td class="lbl">Assigned To / Artisan</td>
+    <td class="val">${card.assigned_artisan ?? '—'}</td>
+  </tr>
+</table>
+
+<!-- SAFETY -->
+<div class="safety">
+  <div class="safehdr">&#9888;&nbsp; Safety &amp; Compliance Requirements</div>
+  <div class="saferow"><b>Hazards:</b> Mechanical entrapment, electrical hazards. Refer to site hazard register before commencing work.</div>
+  <div class="saferow"><b>PPE Required:</b> Safety boots, high-visibility vest, safety glasses, hearing protection, appropriate gloves.</div>
+  <div class="saferow"><b>LOTO (Lockout / Tagout):</b> Isolate all energy sources and secure with personalized padlocks before commencing work. Confirm with supervisor.</div>
 </div>
-</body></html>`
+
+${card.service_description ? `
+<div class="sh" style="margin-top:16px">Service Description</div>
+<div class="dbox">${card.service_description}</div>` : ''}
+
+<!-- 2. WORK TO BE DONE -->
+<div class="sh">2. Work To Be Done</div>
+<table class="ct">
+  <thead>
+    
+  </thead>
+  <tbody>${workRows}</tbody>
+</table>
+
+<!-- 3. PARTS REQUIRED -->
+<div class="sh">3. Parts Required</div>
+<table class="ct">
+  <thead>
+    
+  </thead>
+  <tbody>${partsRows}</tbody>
+</table>
+
+${card.notes ? `
+<div class="sh" style="margin-top:16px">Notes</div>
+<div class="dbox">${card.notes}</div>` : ''}
+
+<!-- 4. LABOR & COMPLETION RECORD -->
+<div class="sh2">4. Labor &amp; Completion Record</div>
+<div class="compbox">
+  <div class="trow">
+    <div class="tf"><div class="tlbl">Start Time</div><div class="tline"></div></div>
+    <div class="tf"><div class="tlbl">End Time</div><div class="tline"></div></div>
+    <div class="tf"><div class="tlbl">Total Hours</div><div class="tline"></div></div>
+  </div>
+  <div class="obslbl">Root Cause / Observations (if corrective action was needed):</div>
+  <div class="obsbox"></div>
+
+  <div class="sog">
+    <div class="sob">
+      <div class="sorole">Maintenance Sign-Off (Technician)</div>
+      <div class="sorow"><div class="soline"></div><div class="solabel">Signature</div></div>
+      <div class="sorow"><div class="soline" style="width:55%"></div><div class="solabel">Date</div></div>
+    </div>
+    <div class="sob">
+      <div class="sorole">Approval Sign-Off (Supervisor / PM Officer)</div>
+      <div class="sorow"><div class="soline"></div><div class="solabel">Signature</div></div>
+      <div class="sorow"><div class="soline" style="width:55%"></div><div class="solabel">Date</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">Proton Bakers CMMS System &bull; Service Job Card &bull; Keep this document for compliance records.</div>
+
+</body>
+</html>`
   const blob = new Blob([html], { type: 'text/html' })
   const url = URL.createObjectURL(blob)
-  const win = window.open(url, '_blank', 'width=850,height=650')
+  const win = window.open(url, '_blank', 'width=900,height=700')
   if (win) {
     win.onload = () => {
       win.print()
@@ -124,8 +298,8 @@ const EMPTY_JC_FORM = {
 const EMPTY_COMPLETE_FORM = {
   service_date: '',
   performed_by: '',
-  work_done: '',
-  parts_used: '',
+  work_done: [] as string[],
+  parts_used: [] as string[],
   completion_notes: '',
 }
 
@@ -366,7 +540,11 @@ export default function ServiceNow() {
   function openViewModalWithComplete(card: ServiceJobCard) {
     setViewingCard(card)
     setShowCompleteForm(true)
-    setCompleteForm({ ...EMPTY_COMPLETE_FORM })
+    setCompleteForm({
+      ...EMPTY_COMPLETE_FORM,
+      work_done: parseListField(card.work_to_be_done),
+      parts_used: parseListField(card.parts_required),
+    })
     setJcError('')
     setJcModal('view')
   }
@@ -466,8 +644,8 @@ export default function ServiceNow() {
       await completeJobCard(viewingCard.id, {
         service_date: completeForm.service_date,
         performed_by: completeForm.performed_by || null,
-        work_done: completeForm.work_done || null,
-        parts_used: completeForm.parts_used || null,
+        work_done: serializeListField(completeForm.work_done),
+        parts_used: serializeListField(completeForm.parts_used),
         completion_notes: completeForm.completion_notes || null,
       })
       closeModal()
@@ -1140,7 +1318,19 @@ export default function ServiceNow() {
                     Save Changes
                   </button>
                   {!showCompleteForm && (
-                    <button onClick={() => setShowCompleteForm(true)} className="btn-primary btn-sm flex items-center gap-1.5">
+                    <button
+                      onClick={() => {
+                        setShowCompleteForm(true)
+                        if (viewingCard) {
+                          setCompleteForm({
+                            ...EMPTY_COMPLETE_FORM,
+                            work_done: parseListField(viewingCard.work_to_be_done),
+                            parts_used: parseListField(viewingCard.parts_required),
+                          })
+                        }
+                      }}
+                      className="btn-primary btn-sm flex items-center gap-1.5"
+                    >
                       <Check className="h-4 w-4" />
                       Mark as Completed
                     </button>
@@ -1158,15 +1348,29 @@ export default function ServiceNow() {
                       </div>
                       <div className="space-y-1">
                         <label className="label">Performed By</label>
-                        <input type="text" className="input" value={completeForm.performed_by} onChange={(e) => setCompleteForm((f) => ({ ...f, performed_by: e.target.value }))} />
+                        <input
+                          type="text"
+                          className="input"
+                          placeholder={viewingCard?.assigned_artisan || ''}
+                          value={completeForm.performed_by}
+                          onChange={(e) => setCompleteForm((f) => ({ ...f, performed_by: e.target.value }))}
+                        />
                       </div>
                       <div className="sm:col-span-2 space-y-1">
                         <label className="label">Work Done</label>
-                        <textarea className="input resize-none" rows={2} value={completeForm.work_done} onChange={(e) => setCompleteForm((f) => ({ ...f, work_done: e.target.value }))} />
+                        <ListInput
+                          items={completeForm.work_done}
+                          onChange={(items) => setCompleteForm((f) => ({ ...f, work_done: items }))}
+                          placeholder="Add completed task…"
+                        />
                       </div>
                       <div className="sm:col-span-2 space-y-1">
                         <label className="label">Parts Used</label>
-                        <textarea className="input resize-none" rows={2} value={completeForm.parts_used} onChange={(e) => setCompleteForm((f) => ({ ...f, parts_used: e.target.value }))} />
+                        <ListInput
+                          items={completeForm.parts_used}
+                          onChange={(items) => setCompleteForm((f) => ({ ...f, parts_used: items }))}
+                          placeholder="Add part used…"
+                        />
                       </div>
                       <div className="sm:col-span-2 space-y-1">
                         <label className="label">Completion Notes</label>
