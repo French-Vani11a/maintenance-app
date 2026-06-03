@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import {
   AlertTriangle,
   CalendarCheck,
-  Clock,
   CheckCircle,
   TrendingUp,
 } from 'lucide-react'
@@ -63,7 +62,7 @@ export default function ServiceDashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="card flex items-center gap-4">
           <div className="rounded-xl bg-red-600 p-3 text-white">
             <AlertTriangle className="h-6 w-6" />
@@ -80,15 +79,6 @@ export default function ServiceDashboard() {
           <div>
             <p className="text-sm text-gray-500">Due Soon</p>
             <p className="text-2xl font-bold text-gray-800">{stats.due_soon_count}</p>
-          </div>
-        </div>
-        <div className="card flex items-center gap-4">
-          <div className="rounded-xl bg-blue-600 p-3 text-white">
-            <Clock className="h-6 w-6" />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Upcoming Services</p>
-            <p className="text-2xl font-bold text-gray-800">{stats.upcoming_count}</p>
           </div>
         </div>
         <div className="card flex items-center gap-4">

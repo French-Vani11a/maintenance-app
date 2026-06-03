@@ -158,7 +158,7 @@ function ServiceStatusBadge({ status }: { status: string }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-const HIST_PAGE_SIZE = 25
+const HIST_PAGE_SIZE = 50
 
 export default function ServiceNow() {
   const [activeTab, setActiveTab] = useState<'due' | 'history'>('due')
