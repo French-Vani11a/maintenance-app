@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardList,
+  Download,
   History,
   Plus,
   Printer,
@@ -16,8 +17,10 @@ import {
   completeJobCard,
   createJobCard,
   deleteJobCard,
+  exportServiceHistoryCsv,
   getDueEquipment,
   getEnrichedServiceHistory,
+  getEquipmentGroups,
   getJobCards,
   getPlants,
   searchAllEquipment,
@@ -26,6 +29,7 @@ import {
 import type {
   DueEquipment,
   EnrichedServiceHistory,
+  EquipmentGroup,
   Plant,
   ServiceJobCard,
 } from '../types'
@@ -200,8 +204,11 @@ export default function ServiceNow() {
   const [histTotal, setHistTotal] = useState(0)
   const [histPage, setHistPage] = useState(0)
   const [histLoading, setHistLoading] = useState(false)
+  const [histExporting, setHistExporting] = useState(false)
   const [histSearch, setHistSearch] = useState('')
   const [histPlantId, setHistPlantId] = useState<number | null>(null)
+  const [histGroupId, setHistGroupId] = useState<number | null>(null)
+  const [histGroups, setHistGroups] = useState<EquipmentGroup[]>([])
   const [histDateFrom, setHistDateFrom] = useState('')
   const [histDateTo, setHistDateTo] = useState('')
   const [histArtisan, setHistArtisan] = useState('')
@@ -218,6 +225,14 @@ export default function ServiceNow() {
   useEffect(() => { loadDueEquipment() }, [dueSearch, duePlantId])
   useEffect(() => { loadJobCards() }, [jobCardSearch, jobCardStatus])
   useEffect(() => { if (activeTab === 'history') loadHistory() }, [activeTab, histPage])
+  useEffect(() => {
+    if (histPlantId) {
+      getEquipmentGroups(histPlantId).then(setHistGroups)
+    } else {
+      setHistGroups([])
+    }
+    setHistGroupId(null)
+  }, [histPlantId])
 
   async function loadDueEquipment() {
     setDueLoading(true)
@@ -260,16 +275,23 @@ export default function ServiceNow() {
     }
   }
 
+  function histFilterParams() {
+    return {
+      plant_id: histPlantId || undefined,
+      equipment_group_id: histGroupId || undefined,
+      date_from: histDateFrom || undefined,
+      date_to: histDateTo || undefined,
+      artisan: histArtisan || undefined,
+      service_type: histServiceType || undefined,
+      search: histSearch || undefined,
+    }
+  }
+
   async function loadHistory() {
     setHistLoading(true)
     try {
       const res = await getEnrichedServiceHistory({
-        plant_id: histPlantId || undefined,
-        date_from: histDateFrom || undefined,
-        date_to: histDateTo || undefined,
-        artisan: histArtisan || undefined,
-        service_type: histServiceType || undefined,
-        search: histSearch || undefined,
+        ...histFilterParams(),
         skip: histPage * HIST_PAGE_SIZE,
         limit: HIST_PAGE_SIZE,
       })
@@ -279,6 +301,23 @@ export default function ServiceNow() {
       setError(e?.response?.data?.detail || 'Failed to load history')
     } finally {
       setHistLoading(false)
+    }
+  }
+
+  async function handleExportHistory() {
+    setHistExporting(true)
+    try {
+      const { blob, filename } = await exportServiceHistoryCsv(histFilterParams())
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || 'Failed to export')
+    } finally {
+      setHistExporting(false)
     }
   }
 
@@ -302,6 +341,7 @@ export default function ServiceNow() {
       plant_id: eq.plant_id,
       service_type: eq.service_type || '',
       due_date: eq.next_service_date || '',
+      _next_service_date: eq.next_service_date || '',
     })
     setJcFormEquipmentLabel(`${eq.equipment_name}${eq.equipment_code ? ' (' + eq.equipment_code + ')' : ''} — ${eq.plant_name ?? 'Unassigned'}`)
     setJcError('')
@@ -760,6 +800,18 @@ export default function ServiceNow() {
                 </select>
               </div>
               <div className="space-y-1">
+                <label className="label">Group</label>
+                <select
+                  className="input"
+                  value={histGroupId ?? ''}
+                  disabled={!histPlantId}
+                  onChange={(e) => setHistGroupId(e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">{histPlantId ? 'All groups' : 'Select a plant first'}</option>
+                  {histGroups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
                 <label className="label">Service Type</label>
                 <input type="text" className="input" placeholder="Filter…" value={histServiceType} onChange={(e) => setHistServiceType(e.target.value)} />
               </div>
@@ -776,14 +828,19 @@ export default function ServiceNow() {
                 <input type="text" className="input" placeholder="Filter…" value={histArtisan} onChange={(e) => setHistArtisan(e.target.value)} />
               </div>
             </div>
-            <div className="mt-3 flex gap-2">
-              <button onClick={() => { setHistPage(0); loadHistory() }} className="btn-primary btn-sm">
+            <div className="mt-3 flex gap-2 flex-wrap">
+              <button onClick={() => { setHistPage(0); loadHistory() }} className="btn-primary btn-sm flex items-center gap-1.5">
                 <Search className="h-3.5 w-3.5" />
                 Apply Filters
               </button>
               <button onClick={() => {
-                setHistSearch(''); setHistPlantId(null); setHistDateFrom(''); setHistDateTo(''); setHistArtisan(''); setHistServiceType(''); setHistPage(0)
+                setHistSearch(''); setHistPlantId(null); setHistGroupId(null); setHistGroups([])
+                setHistDateFrom(''); setHistDateTo(''); setHistArtisan(''); setHistServiceType(''); setHistPage(0)
               }} className="btn-secondary btn-sm">Clear</button>
+              <button onClick={handleExportHistory} disabled={histExporting} className="btn-secondary btn-sm flex items-center gap-1.5 ml-auto">
+                {histExporting ? <LoadingSpinner size="sm" /> : <Download className="h-3.5 w-3.5" />}
+                Export CSV
+              </button>
             </div>
           </div>
 
@@ -893,6 +950,9 @@ export default function ServiceNow() {
               <div className="space-y-1">
                 <label className="label">Due Date</label>
                 <input type="date" className="input" value={jcForm.due_date} onChange={(e) => setJcForm((f) => ({ ...f, due_date: e.target.value }))} />
+                {jcForm._next_service_date && (
+                  <p className="text-xs text-gray-400">Next scheduled service: {jcForm._next_service_date}</p>
+                )}
               </div>
               <div className="space-y-1">
                 <label className="label">Assigned Artisan</label>

@@ -86,7 +86,7 @@ def get_service_dashboard_stats(
             Equipment.service_status,
         )
         .outerjoin(Plant, Equipment.plant_id == Plant.id)
-        .filter(Equipment.next_service_date != None, Equipment.next_service_date >= today)
+        .filter(Equipment.service_status == "Due Soon")
         .order_by(Equipment.next_service_date.asc())
         .limit(20)
         .all()

@@ -149,6 +149,7 @@ export async function getServiceHistory(equipment_id: number): Promise<ServiceHi
 
 export async function getEnrichedServiceHistory(params: {
   equipment_id?: number
+  equipment_group_id?: number
   plant_id?: number
   date_from?: string
   date_to?: string
@@ -160,6 +161,29 @@ export async function getEnrichedServiceHistory(params: {
 }): Promise<ServiceHistoryResponse> {
   const res = await api.get<ServiceHistoryResponse>('/service-history/', { params })
   return res.data
+}
+
+export async function exportServiceHistoryCsv(params: {
+  equipment_id?: number
+  equipment_group_id?: number
+  plant_id?: number
+  date_from?: string
+  date_to?: string
+  artisan?: string
+  service_type?: string
+  search?: string
+}): Promise<{ blob: Blob; filename: string }> {
+  const searchParams = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== '') searchParams.append(k, String(v))
+  })
+  const res = await api.get(`/service-history/export/csv?${searchParams.toString()}`, {
+    responseType: 'blob',
+  })
+  const disposition = res.headers['content-disposition'] as string | undefined
+  const filenameMatch = disposition?.match(/filename="?([^";]+)"?/i)
+  const filename = filenameMatch?.[1] || `service_history_${new Date().toISOString().slice(0, 10)}.csv`
+  return { blob: res.data, filename }
 }
 
 export async function createServiceHistory(data: Partial<ServiceHistory>): Promise<ServiceHistory> {

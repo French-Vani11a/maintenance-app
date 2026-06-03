@@ -225,6 +225,8 @@ export interface EnrichedServiceHistory {
   equipment_code: string | null
   plant_id: number | null
   plant_name: string | null
+  equipment_group_id: number | null
+  equipment_group_name: string | null
   service_date: string
   service_type: string | null
   performed_by: string | null
