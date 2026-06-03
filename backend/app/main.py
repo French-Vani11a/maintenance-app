@@ -1,3 +1,6 @@
+import atexit
+
+from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import inspect, text
@@ -148,6 +151,13 @@ create_tables()
 ensure_schema_updates()
 seed_default_admin()
 recalculate_service_statuses()
+
+# ── Daily scheduler ──────────────────────────────────────────────────────────
+_scheduler = BackgroundScheduler(timezone="UTC")
+_scheduler.add_job(recalculate_service_statuses, "cron", hour=0, minute=0,
+                   id="daily_service_status", replace_existing=True)
+_scheduler.start()
+atexit.register(lambda: _scheduler.shutdown(wait=False))
 
 app = FastAPI(
     title="Maintenance Management API",
