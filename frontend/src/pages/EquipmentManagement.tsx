@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { Plus, Pencil, Trash2, Check, X, Building2, ChevronLeft, ChevronRight, Zap } from 'lucide-react'
 import {
   completeJobCard,
@@ -44,6 +45,7 @@ const EMPTY_EQUIP_FORM = {
 }
 
 export default function EquipmentManagement() {
+  const location = useLocation()
   const [plants, setPlants] = useState<Plant[]>([])
   const [groups, setGroups] = useState<EquipmentGroup[]>([])
   const [equipment, setEquipment] = useState<Equipment[]>([])
@@ -128,7 +130,11 @@ export default function EquipmentManagement() {
         setPlants(p)
         setGroups(g)
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        setLoading(false)
+        const id = (location.state as any)?.openEquipmentId
+        if (id) openDetailsModal(id)
+      })
   }, [])
 
   useEffect(() => {

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import {
   AlertTriangle,
   Check,
@@ -336,6 +337,7 @@ function ServiceStatusBadge({ status }: { status: string }) {
 const HIST_PAGE_SIZE = 50
 
 export default function ServiceNow() {
+  const location = useLocation()
   const [activeTab, setActiveTab] = useState<'due' | 'history'>('due')
   const [plants, setPlants] = useState<Plant[]>([])
   const [loading, setLoading] = useState(true)
@@ -394,7 +396,11 @@ export default function ServiceNow() {
   // Load plants + initial data
   useEffect(() => {
     Promise.all([getPlants(), loadDueEquipment(), loadJobCards(), loadActiveCards()])
-      .then(([p]) => setPlants(p))
+      .then(([p]) => {
+        setPlants(p)
+        const card = (location.state as any)?.openJobCard
+        if (card) openViewModal(card)
+      })
       .catch((e) => setError(e?.response?.data?.detail || 'Failed to load data'))
       .finally(() => setLoading(false))
   }, [])
