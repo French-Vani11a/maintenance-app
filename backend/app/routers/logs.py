@@ -14,7 +14,7 @@ from app.security import get_current_user
 router = APIRouter()
 
 
-@router.get("/", response_model=List[AuditLogResponse])
+@router.get("/")
 def get_audit_logs(
     skip: int = 0,
     limit: int = 100,
@@ -43,6 +43,7 @@ def get_audit_logs(
     if item_type:
         query = query.filter(AuditLog.item_type == item_type)
 
+    total = query.count()
     logs = (
         query.order_by(AuditLog.timestamp.desc())
         .offset(skip)
@@ -50,16 +51,19 @@ def get_audit_logs(
         .all()
     )
 
-    return [
-        {
-            "id": log.id,
-            "user_id": log.user_id,
-            "user_name": log.user.full_name,
-            "action": log.action,
-            "item_type": log.item_type,
-            "item_id": log.item_id,
-            "details": log.details,
-            "timestamp": log.timestamp,
-        }
-        for log in logs
-    ]
+    return {
+        "total": total,
+        "logs": [
+            {
+                "id": log.id,
+                "user_id": log.user_id,
+                "user_name": log.user.full_name,
+                "action": log.action,
+                "item_type": log.item_type,
+                "item_id": log.item_id,
+                "details": log.details,
+                "timestamp": log.timestamp,
+            }
+            for log in logs
+        ],
+    }

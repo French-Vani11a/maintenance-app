@@ -431,8 +431,8 @@ export async function getAuditLogs(params?: {
   user_id?: number
   action?: string
   item_type?: string
-}): Promise<AuditLog[]> {
-  const res = await api.get<AuditLog[]>('/logs/', { params })
+}): Promise<{ total: number; logs: AuditLog[] }> {
+  const res = await api.get<{ total: number; logs: AuditLog[] }>('/logs/', { params })
   return res.data
 }
 
