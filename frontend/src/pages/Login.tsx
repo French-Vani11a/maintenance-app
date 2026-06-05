@@ -28,7 +28,7 @@ export default function Login() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <img src="/logo.png" alt="Logo" className="mx-auto mb-4 h-14 w-14 rounded-2xl" />
+          <img src="/logo-new.png" alt="Logo" className="mx-auto mb-4 h-14 w-14 rounded-2xl" />
           <h1 className="text-2xl font-bold text-white">Maintenance System</h1>
           <p className="mt-1 text-sm text-gray-400">Sign in to continue</p>
         </div>
