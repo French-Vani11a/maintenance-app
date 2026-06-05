@@ -5,6 +5,7 @@ import { Check, ChevronLeft, ChevronRight, Pencil, Plus, Search, Trash2, X } fro
 import { deleteRecord, getEquipment, getEquipmentGroups, getPlants, getRecord, getRecords, updateRecord } from '../services/api'
 import type { Equipment, EquipmentGroup, MaintenanceRecord, Plant, RecordFilters } from '../types'
 import LoadingSpinner from '../components/LoadingSpinner'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 const PAGE_SIZE = 50
 
@@ -63,6 +64,15 @@ export default function MaintenanceRecords() {
 
   const [filters, setFilters] = useState<RecordFilters>({})
   const [search, setSearch] = useState('')
+
+  // Confirm dialog
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean; title: string; message: string; onConfirm: () => void
+  }>({ open: false, title: '', message: '', onConfirm: () => {} })
+  function askConfirm(title: string, message: string, onConfirm: () => void) {
+    setConfirmDialog({ open: true, title, message, onConfirm })
+  }
+  function closeConfirm() { setConfirmDialog(s => ({ ...s, open: false })) }
 
   // Modal state
   const [selectedRecord, setSelectedRecord] = useState<MaintenanceRecord | null>(null)
@@ -184,12 +194,14 @@ export default function MaintenanceRecords() {
     })
   }
 
-  async function handleDelete(id: number) {
-    if (!confirm('Delete this record?')) return
-    await deleteRecord(id)
-    setRecords(prev => prev.filter(r => r.id !== id))
-    setTotal(t => t - 1)
-    if (selectedRecord?.id === id) closeModal()
+  function handleDelete(id: number) {
+    askConfirm('Delete Record', 'This maintenance record will be permanently deleted. This cannot be undone.', async () => {
+      closeConfirm()
+      await deleteRecord(id)
+      setRecords(prev => prev.filter(r => r.id !== id))
+      setTotal(t => t - 1)
+      if (selectedRecord?.id === id) closeModal()
+    })
   }
 
   const totalPages = Math.ceil(total / PAGE_SIZE)
@@ -501,6 +513,14 @@ export default function MaintenanceRecords() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={closeConfirm}
+      />
     </div>
   )
 }

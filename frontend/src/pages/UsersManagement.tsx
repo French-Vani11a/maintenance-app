@@ -2,10 +2,18 @@ import { useEffect, useState } from 'react'
 import { createUser, deleteUser, getUsers, updateUser } from '../services/api'
 import type { User } from '../types'
 import LoadingSpinner from '../components/LoadingSpinner'
+import ConfirmDialog from '../components/ConfirmDialog'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function UsersManagement() {
   const { user: currentUser } = useAuth()
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean; title: string; message: string; onConfirm: () => void
+  }>({ open: false, title: '', message: '', onConfirm: () => {} })
+  function askConfirm(title: string, message: string, onConfirm: () => void) {
+    setConfirmDialog({ open: true, title, message, onConfirm })
+  }
+  function closeConfirm() { setConfirmDialog(s => ({ ...s, open: false })) }
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -117,23 +125,22 @@ export default function UsersManagement() {
     }
   }
 
-  async function handleDeleteUser(user: User) {
+  function handleDeleteUser(user: User) {
     if (currentUser?.id === user.id) return
-    if (!confirm(`Delete user ${user.full_name}?`)) return
-
-    setError('')
-    setUpdatingId(user.id)
-    try {
-      await deleteUser(user.id)
-      setUsers((prev) => prev.filter((x) => x.id !== user.id))
-      if (editingUserId === user.id) {
-        cancelEdit()
+    askConfirm('Delete User', `Remove ${user.full_name} from the system? This cannot be undone.`, async () => {
+      closeConfirm()
+      setError('')
+      setUpdatingId(user.id)
+      try {
+        await deleteUser(user.id)
+        setUsers((prev) => prev.filter((x) => x.id !== user.id))
+        if (editingUserId === user.id) cancelEdit()
+      } catch (e: any) {
+        setError(e?.response?.data?.detail || 'Failed to delete user')
+      } finally {
+        setUpdatingId(null)
       }
-    } catch (e: any) {
-      setError(e?.response?.data?.detail || 'Failed to delete user')
-    } finally {
-      setUpdatingId(null)
-    }
+    })
   }
 
   if (loading) {
@@ -326,6 +333,14 @@ export default function UsersManagement() {
           </tbody>
         </table>
       </div>
+
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={closeConfirm}
+      />
     </div>
   )
 }

@@ -39,6 +39,7 @@ import type {
 } from '../types'
 import LoadingSpinner from '../components/LoadingSpinner'
 import ListInput, { parseListField, serializeListField } from '../components/ListInput'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 // ── Print helper ──────────────────────────────────────────────────────────────
 
@@ -341,6 +342,14 @@ const HIST_PAGE_SIZE = 50
 
 export default function ServiceNow() {
   const location = useLocation()
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean; title: string; message: string; onConfirm: () => void
+  }>({ open: false, title: '', message: '', onConfirm: () => {} })
+  function askConfirm(title: string, message: string, onConfirm: () => void) {
+    setConfirmDialog({ open: true, title, message, onConfirm })
+  }
+  function closeConfirm() { setConfirmDialog(s => ({ ...s, open: false })) }
+
   const [activeTab, setActiveTab] = useState<'due' | 'history'>('due')
   const [plants, setPlants] = useState<Plant[]>([])
   const [loading, setLoading] = useState(true)
@@ -682,14 +691,16 @@ export default function ServiceNow() {
     }
   }
 
-  async function handleDeleteJobCard(id: number) {
-    if (!confirm('Delete this job card?')) return
-    try {
-      await deleteJobCard(id)
-      await Promise.all([loadJobCards(), loadActiveCards()])
-    } catch (e: any) {
-      setError(e?.response?.data?.detail || 'Failed to delete job card')
-    }
+  function handleDeleteJobCard(id: number) {
+    askConfirm('Delete Job Card', 'This job card will be permanently deleted. This cannot be undone.', async () => {
+      closeConfirm()
+      try {
+        await deleteJobCard(id)
+        await Promise.all([loadJobCards(), loadActiveCards()])
+      } catch (e: any) {
+        setError(e?.response?.data?.detail || 'Failed to delete job card')
+      }
+    })
   }
 
   const overdueCount    = dueEquipment.filter((e) => e.service_status === 'Overdue').length
@@ -1505,6 +1516,14 @@ export default function ServiceNow() {
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={closeConfirm}
+      />
+
       {/* ── Service History Detail Modal ── */}
       {selectedHistory && (
         <div

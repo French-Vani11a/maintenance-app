@@ -28,6 +28,7 @@ import type {
 } from '../types'
 import LoadingSpinner from '../components/LoadingSpinner'
 import ListInput, { parseListField, serializeListField } from '../components/ListInput'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 const EMPTY_EQUIP_FORM = {
   name: '',
@@ -78,6 +79,16 @@ export default function EquipmentManagement() {
   const [equipForm, setEquipForm] = useState({ ...EMPTY_EQUIP_FORM })
   const [newEquipForm, setNewEquipForm] = useState({ ...EMPTY_EQUIP_FORM })
   const [addingEquip, setAddingEquip] = useState(false)
+
+  // Confirm dialog state
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean; title: string; message: string; onConfirm: () => void
+  }>({ open: false, title: '', message: '', onConfirm: () => {} })
+
+  function askConfirm(title: string, message: string, onConfirm: () => void) {
+    setConfirmDialog({ open: true, title, message, onConfirm })
+  }
+  function closeConfirm() { setConfirmDialog(s => ({ ...s, open: false })) }
 
   // Equipment Details modal state
   const [modalEditing, setModalEditing] = useState(false)
@@ -234,15 +245,17 @@ export default function EquipmentManagement() {
     }
   }
 
-  async function handleDeletePlant(id: number) {
-    if (!confirm('Delete this plant? Equipment assigned to it will be unassigned.')) return
-    try {
-      await deletePlant(id)
-      setPlants((prev) => prev.filter((p) => p.id !== id))
-      if (selectedPlant === id) setSelectedPlant(null)
-    } catch (e: any) {
-      setError(e?.response?.data?.detail || 'Failed to delete plant')
-    }
+  function handleDeletePlant(id: number) {
+    askConfirm('Delete Plant', 'Equipment assigned to this plant will be unassigned. This cannot be undone.', async () => {
+      closeConfirm()
+      try {
+        await deletePlant(id)
+        setPlants((prev) => prev.filter((p) => p.id !== id))
+        if (selectedPlant === id) setSelectedPlant(null)
+      } catch (e: any) {
+        setError(e?.response?.data?.detail || 'Failed to delete plant')
+      }
+    })
   }
 
   async function handleCreateGroup() {
@@ -274,15 +287,17 @@ export default function EquipmentManagement() {
     }
   }
 
-  async function handleDeleteGroup(id: number) {
-    if (!confirm('Delete this equipment group? Equipment assigned to it will be ungrouped.')) return
-    try {
-      await deleteEquipmentGroup(id)
-      setGroups((prev) => prev.filter((g) => g.id !== id))
-      if (selectedGroup === id) setSelectedGroup(null)
-    } catch (e: any) {
-      setError(e?.response?.data?.detail || 'Failed to delete group')
-    }
+  function handleDeleteGroup(id: number) {
+    askConfirm('Delete Equipment Group', 'Equipment assigned to this group will be ungrouped. This cannot be undone.', async () => {
+      closeConfirm()
+      try {
+        await deleteEquipmentGroup(id)
+        setGroups((prev) => prev.filter((g) => g.id !== id))
+        if (selectedGroup === id) setSelectedGroup(null)
+      } catch (e: any) {
+        setError(e?.response?.data?.detail || 'Failed to delete group')
+      }
+    })
   }
 
   // ── Equipment ─────────────────────────────────────────────────────────────
@@ -403,14 +418,18 @@ export default function EquipmentManagement() {
     }
   }
 
-  async function handleDeleteEquip(id: number) {
-    if (!confirm('Delete this equipment?')) return
-    try {
-      await deleteEquipment(id)
-      loadEquipment()
-    } catch (e: any) {
-      setError(e?.response?.data?.detail || 'Failed to delete equipment')
-    }
+  function handleDeleteEquip(id: number) {
+    askConfirm('Delete Equipment', 'This equipment and its service history will be permanently deleted.', async () => {
+      closeConfirm()
+      try {
+        await deleteEquipment(id)
+        setDetailsModal(null)
+        setModalEditing(false)
+        loadEquipment()
+      } catch (e: any) {
+        setError(e?.response?.data?.detail || 'Failed to delete equipment')
+      }
+    })
   }
 
   function serviceStatusBadge(status?: string | null) {
@@ -1379,6 +1398,14 @@ export default function EquipmentManagement() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={closeConfirm}
+      />
     </div>
   )
 }
