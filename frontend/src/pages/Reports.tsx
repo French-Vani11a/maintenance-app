@@ -143,6 +143,14 @@ export default function Reports() {
             </select>
           </div>
           <div>
+            <label className="label">Type</label>
+            <select className="input w-36" value={filters.record_type || ''} onChange={(e) => handleFilter('record_type', e.target.value)}>
+              <option value="">All Types</option>
+              <option value="regular">Regular</option>
+              <option value="breakdown">Breakdown</option>
+            </select>
+          </div>
+          <div>
             <label className="label">MR No</label>
             <input
               type="text"

@@ -137,6 +137,7 @@ export interface MaintenanceRecord {
   downtime_minutes: number
   remarks: string | null
   status: string
+  record_type: string
   fault_category_id: number | null
   fault_category_name: string | null
   created_by_user_id: number | null
@@ -183,6 +184,7 @@ export interface RecordFilters {
   reporter_name?: string
   mr_no?: string
   status?: string
+  record_type?: string
   search?: string
 }
 

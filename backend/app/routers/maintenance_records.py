@@ -65,6 +65,7 @@ def _enrich(record: MaintenanceRecord) -> dict:
         "downtime_minutes": record.downtime_minutes,
         "remarks": record.remarks,
         "status": record.status,
+        "record_type": record.record_type,
         "fault_category_id": record.fault_category_id,
         "created_by_user_id": record.created_by_user_id,
         "created_by_user_name": record.created_by_user.full_name if record.created_by_user else None,
@@ -94,6 +95,7 @@ def _build_query(
     mr_no: Optional[str],
     status: Optional[str],
     search: Optional[str],
+    record_type: Optional[str] = None,
 ):
     query = db.query(MaintenanceRecord)
     if date_from:
@@ -121,6 +123,8 @@ def _build_query(
         query = query.filter(MaintenanceRecord.mr_no.ilike(f"%{mr_no}%"))
     if status:
         query = query.filter(MaintenanceRecord.status == status)
+    if record_type:
+        query = query.filter(MaintenanceRecord.record_type == record_type.lower())
     if search:
         query = query.filter(
             or_(
@@ -149,13 +153,14 @@ def get_records(
     reporter_name: Optional[str] = Query(None),
     mr_no: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
+    record_type: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     query = _build_query(
         db, date_from, date_to, plant_id, equipment_id, equipment_group_id, created_by,
-        artisan_name, reporter_name, mr_no, status, search,
+        artisan_name, reporter_name, mr_no, status, search, record_type,
     )
     total = query.count()
     records = (
@@ -193,7 +198,7 @@ def export_csv(
     writer.writerow([
         "ID", "Date", "Time Reported", "Reporter", "Reported To", "Artisan",
         "MR No", "Plant", "Equipment", "Equipment Group", "Issue Description",
-        "Arrival Time", "Finishing Time", "Downtime (mins)", "Status", "Remarks",
+        "Arrival Time", "Finishing Time", "Downtime (mins)", "Status", "Type", "Remarks",
     ])
     for r in records:
         writer.writerow([
@@ -212,6 +217,7 @@ def export_csv(
             r.finishing_time or "",
             r.downtime_minutes or 0,
             r.status,
+            r.record_type or "regular",
             r.remarks or "",
         ])
 

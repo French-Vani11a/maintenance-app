@@ -1,7 +1,9 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+VALID_RECORD_TYPES = {"regular", "breakdown"}
 
 
 class MaintenanceRecordBase(BaseModel):
@@ -20,7 +22,16 @@ class MaintenanceRecordBase(BaseModel):
     downtime_minutes: Optional[int] = None
     remarks: Optional[str] = None
     status: str = "open"
+    record_type: str = "regular"
     fault_category_id: Optional[int] = None
+
+    @field_validator("record_type")
+    @classmethod
+    def validate_record_type(cls, v: str) -> str:
+        normalised = v.strip().lower()
+        if normalised not in VALID_RECORD_TYPES:
+            raise ValueError(f"record_type must be one of: {', '.join(sorted(VALID_RECORD_TYPES))}")
+        return normalised
 
 
 class MaintenanceRecordCreate(MaintenanceRecordBase):
@@ -42,7 +53,18 @@ class MaintenanceRecordUpdate(BaseModel):
     downtime_minutes: Optional[int] = None
     remarks: Optional[str] = None
     status: Optional[str] = None
+    record_type: Optional[str] = None
     fault_category_id: Optional[int] = None
+
+    @field_validator("record_type")
+    @classmethod
+    def validate_record_type(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        normalised = v.strip().lower()
+        if normalised not in VALID_RECORD_TYPES:
+            raise ValueError(f"record_type must be one of: {', '.join(sorted(VALID_RECORD_TYPES))}")
+        return normalised
 
 
 class MaintenanceRecord(MaintenanceRecordBase):

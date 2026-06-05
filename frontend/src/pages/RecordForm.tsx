@@ -37,6 +37,7 @@ interface FormState {
   downtime_minutes: string
   remarks: string
   status: string
+  record_type: string
 }
 
 const empty: FormState = {
@@ -55,6 +56,7 @@ const empty: FormState = {
   downtime_minutes: '0',
   remarks: '',
   status: 'open',
+  record_type: 'regular',
 }
 
 /** Compute minutes between two HH:MM strings */
@@ -116,6 +118,7 @@ export default function RecordForm() {
           downtime_minutes: String(r.downtime_minutes ?? 0),
           remarks: r.remarks || '',
           status: r.status || 'open',
+          record_type: r.record_type || 'regular',
         })
       })
       .finally(() => setLoading(false))
@@ -173,6 +176,7 @@ export default function RecordForm() {
         downtime_minutes: Number(form.downtime_minutes) || 0,
         remarks: form.remarks || null,
         status: form.status,
+        record_type: form.record_type,
       }
 
       if (isEdit) {
@@ -197,7 +201,7 @@ export default function RecordForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-4xl space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6">
       <div className="flex items-center gap-3">
         <button type="button" onClick={() => navigate(-1)} className="btn-secondary btn-sm">
           <ArrowLeft className="h-4 w-4" />
@@ -235,9 +239,30 @@ export default function RecordForm() {
               ))}
             </select>
           </FieldWrapper>
+          <FieldWrapper label="Record Type">
+            <div className="flex items-center gap-6 h-10">
+              {(['regular', 'breakdown'] as const).map((type) => (
+                <label key={type} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="record_type"
+                    value={type}
+                    checked={form.record_type === type}
+                    onChange={() => set('record_type', type)}
+                    className="h-4 w-4 accent-blue-600"
+                  />
+                  <span className={`text-sm font-medium ${type === 'breakdown' ? 'text-red-700' : 'text-gray-700'}`}>
+                    {type.charAt(0).toUpperCase() + type.slice(1)}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </FieldWrapper>
           <FieldWrapper label="Reporter">
             <input type="text" className="input" value={form.reporter_name} onChange={(e) => set('reporter_name', e.target.value)} />
           </FieldWrapper>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <FieldWrapper label="Reported To">
             <input type="text" className="input" value={form.reported_to} onChange={(e) => set('reported_to', e.target.value)} />
           </FieldWrapper>
@@ -246,6 +271,7 @@ export default function RecordForm() {
 
       <div className="card space-y-4">
         <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Plant & Equipment</h3>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <FieldWrapper label="Plant">
             <select
               className="input"
@@ -272,6 +298,7 @@ export default function RecordForm() {
               ))}
             </select>
           </FieldWrapper>
+        </div>
       </div>
 
       <div className="card space-y-4">

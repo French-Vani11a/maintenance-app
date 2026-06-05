@@ -24,6 +24,7 @@ class MaintenanceRecord(Base):
     downtime_minutes = Column(Integer, nullable=True, default=0)
     remarks = Column(Text, nullable=True)
     status = Column(String(30), default="open", nullable=False, index=True)
+    record_type = Column(String(20), default="regular", nullable=False, index=True)
     fault_category_id = Column(Integer, ForeignKey("fault_categories.id"), nullable=True)
     created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     created_at = Column(DateTime, server_default=func.now())

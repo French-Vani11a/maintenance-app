@@ -104,6 +104,7 @@ _COL_ALIASES: Dict[str, List[str]] = {
     "finishing_time": ["finishing time", "finish time", "completed", "time finished", "finished"],
     "downtime": ["downtime", "down time", "duration", "hrs down", "hours down"],
     "remarks": ["remarks", "notes", "observation"],
+    "record_type": ["record type", "type", "maintenance type", "fault type", "call type"],
 }
 
 
@@ -220,6 +221,15 @@ def parse_excel_maintenance_records(
             record["downtime_minutes"] = computed_downtime
 
         record.setdefault("status", "closed")  # imported records are assumed closed
+
+        # Normalise record_type — accept regular/breakdown case-insensitively, default to regular
+        raw_type = record.get("record_type")
+        if raw_type:
+            normalised = str(raw_type).strip().lower()
+            record["record_type"] = normalised if normalised in ("regular", "breakdown") else "regular"
+        else:
+            record["record_type"] = "regular"
+
         records.append(record)
 
     return records

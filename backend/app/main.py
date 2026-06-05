@@ -95,6 +95,9 @@ def ensure_schema_updates():
     if "equipment_group_id" not in columns:
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE maintenance_records ADD COLUMN equipment_group_id INTEGER REFERENCES equipment_groups(id)"))
+    if "record_type" not in columns:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE maintenance_records ADD COLUMN record_type VARCHAR(20) NOT NULL DEFAULT 'regular'"))
 
 
 def seed_default_admin():
