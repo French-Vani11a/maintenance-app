@@ -232,4 +232,19 @@ def parse_excel_maintenance_records(
 
         records.append(record)
 
+    # Validate: every row must have an equipment name
+    missing_rows = [
+        i + 1  # 1-based data-row number
+        for i, r in enumerate(records)
+        if not r.get("equipment")
+    ]
+    if missing_rows:
+        sample = ", ".join(str(n) for n in missing_rows[:10])
+        extra = f" and {len(missing_rows) - 10} more" if len(missing_rows) > 10 else ""
+        raise ValueError(
+            f"Equipment is required for every record. "
+            f"Missing on data row(s): {sample}{extra}. "
+            f"Please fill in the Equipment column and re-upload."
+        )
+
     return records

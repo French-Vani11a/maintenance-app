@@ -23,8 +23,10 @@ import {
   getEnrichedServiceHistory,
   getEquipment,
   getEquipmentGroups,
+  getJobCard,
   getJobCards,
   getPlants,
+  getServiceHistoryRecord,
   updateJobCard,
 } from '../services/api'
 import type {
@@ -398,6 +400,10 @@ export default function ServiceNow() {
   const [histArtisan, setHistArtisan] = useState('')
   const [histServiceType, setHistServiceType] = useState('')
 
+  // Service history detail modal
+  const [selectedHistory, setSelectedHistory] = useState<EnrichedServiceHistory | null>(null)
+  const [histPrinting, setHistPrinting] = useState(false)
+
   // Load plants + initial data
   useEffect(() => {
     Promise.all([getPlants(), loadDueEquipment(), loadJobCards(), loadActiveCards()])
@@ -405,6 +411,11 @@ export default function ServiceNow() {
         setPlants(p)
         const card = (location.state as any)?.openJobCard
         if (card) openViewModal(card)
+        const histId = (location.state as any)?.openServiceHistoryId
+        if (histId) {
+          getServiceHistoryRecord(histId).then(setSelectedHistory).catch(() => {})
+          setActiveTab('history')
+        }
       })
       .catch((e) => setError(e?.response?.data?.detail || 'Failed to load data'))
       .finally(() => setLoading(false))
@@ -1136,7 +1147,7 @@ export default function ServiceNow() {
                   </thead>
                   <tbody>
                     {histRecords.map((r) => (
-                      <tr key={r.id}>
+                      <tr key={r.id} className="cursor-pointer hover:bg-blue-50/40 transition-colors" onClick={() => setSelectedHistory(r)}>
                         <td className="text-sm text-gray-600 whitespace-nowrap">{r.service_date}</td>
                         <td>
                           <div className="font-medium">{r.equipment_name ?? '—'}</div>
@@ -1148,9 +1159,9 @@ export default function ServiceNow() {
                         <td className="text-sm text-gray-600 max-w-[200px] truncate">{r.work_done ?? r.notes ?? '—'}</td>
                         <td className="text-sm text-gray-600">{r.parts_used ?? '—'}</td>
                         <td>
-                          {r.job_card_number ? (
-                            <span className="font-mono text-xs text-blue-600">{r.job_card_number}</span>
-                          ) : '—'}
+                          {r.job_card_number
+                            ? <span className="font-mono text-xs text-blue-600">{r.job_card_number}</span>
+                            : '—'}
                         </td>
                       </tr>
                     ))}
@@ -1489,6 +1500,144 @@ export default function ServiceNow() {
                     </ul>
                   </div>
                 )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      {/* ── Service History Detail Modal ── */}
+      {selectedHistory && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto"
+          onClick={() => setSelectedHistory(null)}
+        >
+          <div className="card w-full max-w-2xl my-8 space-y-5" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-800">Service Record</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{selectedHistory.service_date}</p>
+              </div>
+              <button
+                onClick={() => setSelectedHistory(null)}
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Info grid */}
+            <div className="grid grid-cols-2 gap-x-8 gap-y-4 border-t pt-4 sm:grid-cols-3">
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Equipment</p>
+                <p className="mt-1 text-sm text-gray-800">
+                  {selectedHistory.equipment_name ?? '—'}
+                  {selectedHistory.equipment_code && (
+                    <span className="ml-1 font-mono text-xs text-gray-400">({selectedHistory.equipment_code})</span>
+                  )}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Plant</p>
+                <p className="mt-1 text-sm text-gray-800">{selectedHistory.plant_name ?? '—'}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Group</p>
+                <p className="mt-1 text-sm text-gray-800">{selectedHistory.equipment_group_name ?? '—'}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Service Date</p>
+                <p className="mt-1 text-sm text-gray-800">{selectedHistory.service_date}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Service Type</p>
+                <p className="mt-1 text-sm text-gray-800">{selectedHistory.service_type ?? '—'}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Performed By</p>
+                <p className="mt-1 text-sm text-gray-800">{selectedHistory.performed_by ?? '—'}</p>
+              </div>
+
+              {/* Job Card with print icon */}
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Job Card</p>
+                <div className="mt-1 flex items-center gap-2">
+                  {selectedHistory.job_card_number ? (
+                    <>
+                      <span className="font-mono text-sm text-blue-600">{selectedHistory.job_card_number}</span>
+                      <button
+                        title="Print job card"
+                        disabled={histPrinting}
+                        onClick={async () => {
+                          if (!selectedHistory.job_card_id) return
+                          setHistPrinting(true)
+                          try {
+                            const card = await getJobCard(selectedHistory.job_card_id)
+                            printJobCard(card)
+                          } finally {
+                            setHistPrinting(false)
+                          }
+                        }}
+                        className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                      >
+                        {histPrinting ? <LoadingSpinner size="sm" /> : <Printer className="h-3.5 w-3.5" />}
+                      </button>
+                    </>
+                  ) : (
+                    <span className="text-sm text-gray-800">—</span>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Recorded At</p>
+                <p className="mt-1 text-sm text-gray-800">
+                  {selectedHistory.created_at ? new Date(selectedHistory.created_at).toLocaleString() : '—'}
+                </p>
+              </div>
+            </div>
+
+            {/* Work Done */}
+            {(selectedHistory.work_done || selectedHistory.notes) && (
+              <div className="border-t pt-4">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Work Done</p>
+                {(() => {
+                  const items = parseListField(selectedHistory.work_done ?? selectedHistory.notes)
+                  return items.length > 1 ? (
+                    <ul className="space-y-1">
+                      {items.map((item, i) => (
+                        <li key={i} className="flex items-start gap-2 text-sm text-gray-800">
+                          <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-gray-400 shrink-0" />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{items[0] ?? '—'}</p>
+                  )
+                })()}
+              </div>
+            )}
+
+            {/* Parts Used */}
+            {selectedHistory.parts_used && (
+              <div className="border-t pt-4">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Parts Used</p>
+                {(() => {
+                  const items = parseListField(selectedHistory.parts_used)
+                  return items.length > 1 ? (
+                    <ul className="space-y-1">
+                      {items.map((item, i) => (
+                        <li key={i} className="flex items-start gap-2 text-sm text-gray-800">
+                          <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-gray-400 shrink-0" />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-gray-800">{items[0] ?? '—'}</p>
+                  )
+                })()}
               </div>
             )}
           </div>

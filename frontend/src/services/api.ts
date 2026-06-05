@@ -147,6 +147,11 @@ export async function getServiceHistory(equipment_id: number): Promise<ServiceHi
   return res.data.records
 }
 
+export async function getServiceHistoryRecord(id: number): Promise<EnrichedServiceHistory> {
+  const res = await api.get<EnrichedServiceHistory>(`/service-history/${id}`)
+  return res.data
+}
+
 export async function getEnrichedServiceHistory(params: {
   equipment_id?: number
   equipment_group_id?: number
@@ -203,6 +208,11 @@ export async function getDueEquipment(params?: {
 
 export async function searchAllEquipment(search: string, plant_id?: number): Promise<DueEquipment[]> {
   const res = await api.get<DueEquipment[]>('/job-cards/search-equipment', { params: { search, plant_id } })
+  return res.data
+}
+
+export async function getJobCard(id: number): Promise<ServiceJobCard> {
+  const res = await api.get<ServiceJobCard>(`/job-cards/${id}`)
   return res.data
 }
 
@@ -389,6 +399,16 @@ export async function getDowntimeByEquipmentForPlant(
 }
 
 // ── Import ───────────────────────────────────────────────────────────────────
+
+export async function downloadImportTemplate(): Promise<void> {
+  const res = await api.get('/import/template', { responseType: 'blob' })
+  const url = URL.createObjectURL(res.data)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'maintenance_import_template.xlsx'
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
 export async function previewImport(
   file: File,

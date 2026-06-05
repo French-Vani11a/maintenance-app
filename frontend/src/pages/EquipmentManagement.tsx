@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Plus, Pencil, Trash2, Check, X, Building2, ChevronLeft, ChevronRight, Zap } from 'lucide-react'
 import {
   completeJobCard,
@@ -46,6 +46,7 @@ const EMPTY_EQUIP_FORM = {
 
 export default function EquipmentManagement() {
   const location = useLocation()
+  const navigate = useNavigate()
   const [plants, setPlants] = useState<Plant[]>([])
   const [groups, setGroups] = useState<EquipmentGroup[]>([])
   const [equipment, setEquipment] = useState<Equipment[]>([])
@@ -1296,7 +1297,12 @@ export default function EquipmentManagement() {
                         </thead>
                         <tbody>
                           {detailsModal.recent_service_histories.map((s) => (
-                            <tr key={s.id}>
+                            <tr key={s.id} className="cursor-pointer hover:bg-blue-50/50 transition-colors"
+                              onClick={() => {
+                                setDetailsModal(null)
+                                setModalEditing(false)
+                                navigate('/service-now', { state: { openServiceHistoryId: s.id } })
+                              }}>
                               <td className="text-gray-600">{s.service_date}</td>
                               <td>{s.service_type || '—'}</td>
                               <td className="text-gray-600">{s.performed_by || '—'}</td>
@@ -1329,7 +1335,12 @@ export default function EquipmentManagement() {
                         </thead>
                         <tbody>
                           {detailsModal.recent_maintenance_records.map((r) => (
-                            <tr key={r.id}>
+                            <tr key={r.id} className="cursor-pointer hover:bg-blue-50/50 transition-colors"
+                              onClick={() => {
+                                setDetailsModal(null)
+                                setModalEditing(false)
+                                navigate('/records', { state: { openRecordId: r.id } })
+                              }}>
                               <td className="text-gray-600">{r.record_date}</td>
                               <td className="font-mono text-xs text-gray-500">{r.mr_no || '—'}</td>
                               <td className="max-w-[200px] truncate">{r.issue_description || '—'}</td>

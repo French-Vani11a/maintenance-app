@@ -144,6 +144,18 @@ def get_service_history(
     return {"total": total, "records": [_enrich_history(r) for r in records]}
 
 
+@router.get("/{record_id}")
+def get_service_history_record(
+    record_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    r = db.query(ServiceHistory).filter(ServiceHistory.id == record_id).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Service history record not found")
+    return _enrich_history(r)
+
+
 @router.post("/")
 def create_service_history(
     record: ServiceHistoryCreate,

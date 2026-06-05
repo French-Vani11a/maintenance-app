@@ -290,8 +290,8 @@ export default function RecordForm() {
               ))}
             </select>
           </FieldWrapper>
-          <FieldWrapper label="Equipment">
-            <select className="input" value={form.equipment_id} onChange={(e) => set('equipment_id', e.target.value)}>
+          <FieldWrapper label="Equipment *">
+            <select className="input" required value={form.equipment_id} onChange={(e) => set('equipment_id', e.target.value)}>
               <option value="">— Select equipment —</option>
               {filteredEquipment.map((e) => (
                 <option key={e.id} value={e.id}>{e.equipment_name}</option>

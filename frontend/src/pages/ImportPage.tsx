@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
-import { AlertTriangle, CheckCircle, FileSpreadsheet, Upload } from 'lucide-react'
-import { commitImport, previewImport } from '../services/api'
+import { AlertTriangle, CheckCircle, Download, FileSpreadsheet, Upload } from 'lucide-react'
+import { commitImport, downloadImportTemplate, previewImport } from '../services/api'
 import LoadingSpinner from '../components/LoadingSpinner'
 
 type Step = 'upload' | 'preview' | 'done'
@@ -148,15 +148,26 @@ export default function ImportPage() {
 
       {step === 'upload' && (
         <div className="card space-y-6">
-          <div>
-            <h2 className="font-semibold text-gray-700 mb-1">Upload Excel File</h2>
-            <p className="text-sm text-gray-500">
-              Upload your maintenance log Excel file (.xlsx or .xls). The importer
-              will auto-detect column headers.
-            </p>
-            <p className="text-xs text-gray-500 mt-2">
-              Note: Downtime is auto-calculated from arrival and finishing times when both are provided. If a matching record already exists, it will be updated instead of duplicated.
-            </p>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="font-semibold text-gray-700 mb-1">Upload Excel File</h2>
+              <p className="text-sm text-gray-500">
+                Upload your maintenance log Excel file (.xlsx or .xls). The importer
+                will auto-detect column headers.
+              </p>
+              <p className="text-xs text-gray-500 mt-2">
+                Note: Downtime is auto-calculated from arrival and finishing times when both are provided. If a matching record already exists, it will be updated instead of duplicated.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => downloadImportTemplate()}
+              className="btn-secondary btn-sm flex items-center gap-1.5 shrink-0"
+              title="Download the Excel template with correct column headers and example rows"
+            >
+              <Download className="h-4 w-4" />
+              Download Template
+            </button>
           </div>
 
           {/* Drop zone */}

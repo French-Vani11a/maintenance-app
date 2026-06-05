@@ -152,6 +152,18 @@ def search_all_equipment(
     ]
 
 
+@router.get("/{job_card_id}")
+def get_job_card(
+    job_card_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    jc = db.query(ServiceJobCard).filter(ServiceJobCard.id == job_card_id).first()
+    if not jc:
+        raise HTTPException(status_code=404, detail="Job card not found")
+    return _enrich(jc)
+
+
 @router.get("/")
 def get_job_cards(
     status: Optional[str] = Query(None),

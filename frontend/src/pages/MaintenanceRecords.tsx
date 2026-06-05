@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { format } from 'date-fns'
 import { Check, ChevronLeft, ChevronRight, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
-import { deleteRecord, getEquipment, getEquipmentGroups, getPlants, getRecords, updateRecord } from '../services/api'
+import { deleteRecord, getEquipment, getEquipmentGroups, getPlants, getRecord, getRecords, updateRecord } from '../services/api'
 import type { Equipment, EquipmentGroup, MaintenanceRecord, Plant, RecordFilters } from '../types'
 import LoadingSpinner from '../components/LoadingSpinner'
 
@@ -51,6 +51,7 @@ const EMPTY_MODAL_FORM: ModalForm = {
 }
 
 export default function MaintenanceRecords() {
+  const location = useLocation()
   const [records, setRecords] = useState<MaintenanceRecord[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(0)
@@ -74,6 +75,10 @@ export default function MaintenanceRecords() {
     getPlants().then(setPlants)
     getEquipment().then(result => setEquipment(result.equipment))
     getEquipmentGroups().then(setGroups)
+    const recordId = (location.state as any)?.openRecordId
+    if (recordId) {
+      getRecord(Number(recordId)).then(openModal).catch(() => {})
+    }
   }, [])
 
   useEffect(() => {
