@@ -23,6 +23,7 @@ import {
 import { getDashboardStatsByDateRange, getDowntimeByEquipmentForPlant } from '../services/api'
 import type { DashboardStats, DowntimeByEquipment } from '../types'
 import LoadingSpinner from '../components/LoadingSpinner'
+import LoginToastNotifications from '../components/LoginToastNotifications'
 
 const COLORS = [
   '#3b82f6', '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e',
@@ -132,6 +133,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      <LoginToastNotifications />
       {/* Date selector */}
       <div className="flex items-center gap-3">
         <input
