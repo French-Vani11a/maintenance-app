@@ -1,26 +1,31 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Plus, Pencil, Trash2, Check, X, Building2, ChevronLeft, ChevronRight, Zap } from 'lucide-react'
+import { Plus, Pencil, Trash2, Check, X, Building2, ChevronLeft, ChevronRight, Zap, Cpu } from 'lucide-react'
 import {
   completeJobCard,
+  createComponent,
   createEquipment,
   createEquipmentGroup,
   createJobCard,
   createPlant,
+  deleteComponent,
   deleteEquipment,
   deleteEquipmentGroup,
   deletePlant,
+  getComponents,
   getEquipment,
   getEquipmentDetails,
   getEquipmentGroups,
   getJobCards,
   getPlants,
+  updateComponent,
   updateEquipment,
   updateEquipmentGroup,
   updatePlant,
 } from '../services/api'
 import type {
   Equipment,
+  EquipmentComponent,
   EquipmentDetails,
   EquipmentGroup,
   Plant,
@@ -440,6 +445,261 @@ export default function EquipmentManagement() {
     return 'bg-gray-100 text-gray-600'
   }
 
+  // ── Page-level tab ──────────────────────────────────────────────────────────
+  const [pageTab, setPageTab] = useState<'equipment' | 'components'>('equipment')
+
+  // ── Components tab state ─────────────────────────────────────────────────
+  const COMPONENT_PAGE_SIZE = 50
+  const [components, setComponents] = useState<EquipmentComponent[]>([])
+  const [totalComponents, setTotalComponents] = useState(0)
+  const [componentPage, setComponentPage] = useState(0)
+  const [componentLoading, setComponentLoading] = useState(false)
+  const [componentError, setComponentError] = useState('')
+  const [componentSearch, setComponentSearch] = useState('')
+  const [componentFilterEquip, setComponentFilterEquip] = useState<number | null>(null)
+  const [componentFilterPlant, setComponentFilterPlant] = useState<number | null>(null)
+  const [componentFilterGroup, setComponentFilterGroup] = useState<number | null>(null)
+  const [componentFilterStatus, setComponentFilterStatus] = useState('')
+
+  const EMPTY_COMP_FORM = {
+    equipment_id: null as number | null,
+    component_name: '',
+    manufacturer: '',
+    model_number: '',
+    description: '',
+    last_service_date: '',
+    service_interval_days: null as number | null,
+    notes: '',
+    status: 'active',
+  }
+  const [addingComponent, setAddingComponent] = useState(false)
+  const [newCompForm, setNewCompForm] = useState({ ...EMPTY_COMP_FORM })
+  const [editCompForm, setEditCompForm] = useState({ ...EMPTY_COMP_FORM })
+  const [compFormSaving, setCompFormSaving] = useState(false)
+
+  const [componentDetailModal, setComponentDetailModal] = useState<EquipmentComponent | null>(null)
+  const [componentModalEditing, setComponentModalEditing] = useState(false)
+  const [componentModalHistory, setComponentModalHistory] = useState<ServiceJobCard[]>([])
+  const [componentModalHistoryLoading, setComponentModalHistoryLoading] = useState(false)
+  const [componentActiveCard, setComponentActiveCard] = useState<ServiceJobCard | null>(null)
+  const [showCompServiceForm, setShowCompServiceForm] = useState(false)
+  const [compServiceForm, setCompServiceForm] = useState({
+    service_type: '', start_date: '', due_date: '', service_description: '',
+    work_to_be_done: [] as string[], assigned_artisan: '', assigned_by: '',
+    parts_required: [] as string[], priority: 'medium', notes: '',
+  })
+  const [compCompleteForm, setCompCompleteForm] = useState({
+    service_date: '', performed_by: '', work_done: [] as string[],
+    parts_used: [] as string[], completion_notes: '',
+  })
+  const [compServiceFormSaving, setCompServiceFormSaving] = useState(false)
+  const [compCompleting, setCompCompleting] = useState(false)
+  const [compServiceFormSuccess, setCompServiceFormSuccess] = useState('')
+  const [compServiceFormError, setCompServiceFormError] = useState('')
+
+  useEffect(() => {
+    if (!componentDetailModal) {
+      setComponentModalHistory([])
+      setComponentActiveCard(null)
+      setShowCompServiceForm(false)
+      setCompServiceFormSuccess('')
+      setCompServiceFormError('')
+      return
+    }
+    // Always reset form state when component changes (handles direct row-to-row switching)
+    setShowCompServiceForm(false)
+    setCompServiceFormSuccess('')
+    setCompServiceFormError('')
+    setComponentActiveCard(null)
+    setComponentModalHistoryLoading(true)
+    getJobCards({ component_id: componentDetailModal.id, status: 'completed', limit: 50 })
+      .then((res) => setComponentModalHistory(res.job_cards))
+      .catch(() => setComponentModalHistory([]))
+      .finally(() => setComponentModalHistoryLoading(false))
+    getJobCards({ component_id: componentDetailModal.id, limit: 20 })
+      .then((res) => setComponentActiveCard(res.job_cards.find((c) => c.status !== 'completed') ?? null))
+      .catch(() => setComponentActiveCard(null))
+  }, [componentDetailModal?.id])
+
+  // Components inside the details modal
+  const [modalComponents, setModalComponents] = useState<EquipmentComponent[]>([])
+  const [modalCompLoading, setModalCompLoading] = useState(false)
+  const [addingModalComp, setAddingModalComp] = useState(false)
+  const [modalCompForm, setModalCompForm] = useState({ ...EMPTY_COMP_FORM })
+  const [editingModalComp, setEditingModalComp] = useState<EquipmentComponent | null>(null)
+  const [editModalCompForm, setEditModalCompForm] = useState({ ...EMPTY_COMP_FORM })
+  const [modalCompSaving, setModalCompSaving] = useState(false)
+
+  async function loadComponents() {
+    setComponentLoading(true)
+    setComponentError('')
+    try {
+      const res = await getComponents({
+        equipment_id: componentFilterEquip || undefined,
+        plant_id: componentFilterPlant || undefined,
+        service_status: componentFilterStatus || undefined,
+        search: componentSearch || undefined,
+        skip: componentPage * COMPONENT_PAGE_SIZE,
+        limit: COMPONENT_PAGE_SIZE,
+      })
+      setComponents(res.components)
+      setTotalComponents(res.total)
+    } catch {
+      setComponentError('Failed to load components')
+    } finally {
+      setComponentLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (pageTab === 'components') loadComponents()
+  }, [pageTab, componentPage, componentFilterEquip, componentFilterPlant, componentFilterStatus, componentSearch])
+
+  async function loadModalComponents(equipmentId: number) {
+    setModalCompLoading(true)
+    try {
+      const res = await getComponents({ equipment_id: equipmentId, limit: 200 })
+      setModalComponents(res.components)
+    } catch {
+      setModalComponents([])
+    } finally {
+      setModalCompLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (detailsModal?.id) {
+      loadModalComponents(detailsModal.id)
+    } else {
+      setModalComponents([])
+      setAddingModalComp(false)
+      setEditingModalComp(null)
+    }
+  }, [detailsModal?.id])
+
+  async function handleCreateComponent(form: typeof EMPTY_COMP_FORM, onDone: () => void) {
+    if (!form.equipment_id || !form.component_name.trim()) return
+    setCompFormSaving(true)
+    try {
+      await createComponent({
+        equipment_id: form.equipment_id,
+        component_name: form.component_name.trim(),
+        manufacturer: form.manufacturer || null,
+        model_number: form.model_number || null,
+        description: form.description || null,
+        last_service_date: form.last_service_date || null,
+        service_interval_days: form.service_interval_days,
+        notes: form.notes || null,
+        status: form.status,
+      })
+      onDone()
+    } catch (e: any) {
+      setComponentError(e?.response?.data?.detail || 'Failed to create component')
+    } finally {
+      setCompFormSaving(false)
+    }
+  }
+
+  async function handleUpdateComponent(id: number, form: typeof EMPTY_COMP_FORM, onDone: () => void) {
+    setCompFormSaving(true)
+    try {
+      await updateComponent(id, {
+        component_name: form.component_name.trim(),
+        manufacturer: form.manufacturer || null,
+        model_number: form.model_number || null,
+        description: form.description || null,
+        last_service_date: form.last_service_date || null,
+        service_interval_days: form.service_interval_days,
+        notes: form.notes || null,
+        status: form.status,
+      })
+      onDone()
+    } catch (e: any) {
+      setComponentError(e?.response?.data?.detail || 'Failed to update component')
+    } finally {
+      setCompFormSaving(false)
+    }
+  }
+
+  function handleDeleteComponent(id: number, onDone?: () => void) {
+    askConfirm('Delete Component', 'This component will be permanently deleted.', async () => {
+      closeConfirm()
+      try {
+        await deleteComponent(id)
+        onDone?.()
+      } catch (e: any) {
+        setComponentError(e?.response?.data?.detail || 'Failed to delete component')
+      }
+    })
+  }
+
+  async function handleCreateCompJobCard() {
+    if (!componentDetailModal) return
+    setCompServiceFormSaving(true)
+    setCompServiceFormError('')
+    setCompServiceFormSuccess('')
+    try {
+      const card = await createJobCard({
+        equipment_id: componentDetailModal.equipment_id,
+        component_id: componentDetailModal.id,
+        plant_id: componentDetailModal.plant_id,
+        service_type: compServiceForm.service_type || null,
+        due_date: compServiceForm.due_date || null,
+        service_description: compServiceForm.service_description || null,
+        work_to_be_done: serializeListField(compServiceForm.work_to_be_done),
+        assigned_artisan: compServiceForm.assigned_artisan || null,
+        assigned_by: compServiceForm.assigned_by || null,
+        start_date: compServiceForm.start_date || null,
+        parts_required: serializeListField(compServiceForm.parts_required),
+        priority: compServiceForm.priority,
+        notes: compServiceForm.notes || null,
+      })
+      setCompServiceFormSuccess(`Job card ${card.job_card_number} created.`)
+      setShowCompServiceForm(false)
+      setCompServiceForm({ service_type: '', start_date: '', due_date: '', service_description: '', work_to_be_done: [], assigned_artisan: '', assigned_by: '', parts_required: [], priority: 'medium', notes: '' })
+      setComponentActiveCard(card)
+    } catch (e: any) {
+      setCompServiceFormError(e?.response?.data?.detail || 'Failed to create job card')
+    } finally {
+      setCompServiceFormSaving(false)
+    }
+  }
+
+  async function handleCompleteCompJobCard() {
+    if (!componentActiveCard || !componentDetailModal) return
+    if (!compCompleteForm.service_date) { setCompServiceFormError('Service date is required'); return }
+    setCompCompleting(true)
+    setCompServiceFormError('')
+    try {
+      await completeJobCard(componentActiveCard.id, {
+        service_date: compCompleteForm.service_date,
+        performed_by: compCompleteForm.performed_by || null,
+        work_done: serializeListField(compCompleteForm.work_done),
+        parts_used: serializeListField(compCompleteForm.parts_used),
+        completion_notes: compCompleteForm.completion_notes || null,
+      })
+      setShowCompServiceForm(false)
+      setCompCompleteForm({ service_date: '', performed_by: '', work_done: [], parts_used: [], completion_notes: '' })
+      setCompServiceFormSuccess('Service completed.')
+      setComponentActiveCard(null)
+      const newNextDate = calculateNextServiceDate(compCompleteForm.service_date, componentDetailModal.service_interval_days)
+      const newStatus = calculateServiceStatus(compCompleteForm.service_date, componentDetailModal.service_interval_days)
+      setComponentDetailModal((prev) => prev ? {
+        ...prev,
+        last_service_date: compCompleteForm.service_date,
+        next_service_date: newNextDate || null,
+        service_status: newStatus,
+      } : prev)
+      const histRes = await getJobCards({ component_id: componentDetailModal.id, status: 'completed', limit: 50 })
+      setComponentModalHistory(histRes.job_cards)
+      loadComponents()
+    } catch (e: any) {
+      setCompServiceFormError(e?.response?.data?.detail || 'Failed to complete service')
+    } finally {
+      setCompCompleting(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex h-48 items-center justify-center">
@@ -450,6 +710,32 @@ export default function EquipmentManagement() {
 
   return (
     <div className="grid grid-cols-1 gap-6">
+      {/* Page tabs */}
+      <div className="col-span-full flex gap-1 border-b border-gray-200">
+        <button
+          onClick={() => setPageTab('equipment')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            pageTab === 'equipment'
+              ? 'border-blue-600 text-blue-700'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Building2 className="h-4 w-4" />
+          Equipment
+        </button>
+        <button
+          onClick={() => setPageTab('components')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            pageTab === 'components'
+              ? 'border-blue-600 text-blue-700'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Cpu className="h-4 w-4" />
+          Components
+        </button>
+      </div>
+
       {error && (
         <div className="col-span-full rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600 flex items-center justify-between">
           {error}
@@ -457,6 +743,249 @@ export default function EquipmentManagement() {
         </div>
       )}
 
+      {/* ── Components Tab ──────────────────────────────────────────────────── */}
+      {pageTab === 'components' && (
+        <div className="col-span-full space-y-4">
+          {componentError && (
+            <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600 flex items-center justify-between">
+              {componentError}
+              <button onClick={() => setComponentError('')}><X className="h-4 w-4" /></button>
+            </div>
+          )}
+
+          {/* Filters row */}
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              className="input text-sm py-1.5 w-48"
+              placeholder="Search name or equipment…"
+              value={componentSearch}
+              onChange={(e) => { setComponentSearch(e.target.value); setComponentPage(0) }}
+            />
+            <select
+              className="input text-sm py-1.5 w-44"
+              value={componentFilterPlant ?? ''}
+              onChange={(e) => {
+                const val = e.target.value ? Number(e.target.value) : null
+                setComponentFilterPlant(val)
+                setComponentFilterGroup(null)
+                setComponentFilterEquip(null)
+                setComponentPage(0)
+              }}
+            >
+              <option value="">All plants</option>
+              {plants.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <select
+              className="input text-sm py-1.5 w-44"
+              value={componentFilterGroup ?? ''}
+              disabled={!componentFilterPlant}
+              onChange={(e) => {
+                const val = e.target.value ? Number(e.target.value) : null
+                setComponentFilterGroup(val)
+                setComponentFilterEquip(null)
+                setComponentPage(0)
+              }}
+            >
+              <option value="">{componentFilterPlant ? 'All groups' : 'Select plant first'}</option>
+              {componentFilterPlant
+                ? groups.filter((g) => g.plant_id === componentFilterPlant).map((g) => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
+                  ))
+                : null}
+            </select>
+            <select
+              className="input text-sm py-1.5 w-44"
+              value={componentFilterEquip ?? ''}
+              onChange={(e) => { setComponentFilterEquip(e.target.value ? Number(e.target.value) : null); setComponentPage(0) }}
+            >
+              <option value="">All equipment</option>
+              {allEquipment
+                .filter((eq) => {
+                  if (componentFilterGroup) return eq.equipment_group_id === componentFilterGroup
+                  if (componentFilterPlant) return eq.plant_id === componentFilterPlant
+                  return true
+                })
+                .map((eq) => <option key={eq.id} value={eq.id}>{eq.equipment_name}</option>)}
+            </select>
+            <select
+              className="input text-sm py-1.5 w-44"
+              value={componentFilterStatus}
+              onChange={(e) => { setComponentFilterStatus(e.target.value); setComponentPage(0) }}
+            >
+              <option value="">All statuses</option>
+              <option value="Overdue">Overdue</option>
+              <option value="Due Today">Due Today</option>
+              <option value="Due Soon">Due Soon</option>
+              <option value="On Schedule">On Schedule</option>
+              <option value="Not Scheduled">Not Scheduled</option>
+            </select>
+            <button
+              className="btn-primary btn-sm ml-auto"
+              onClick={() => {
+                setNewCompForm({ ...EMPTY_COMP_FORM, equipment_id: componentFilterEquip })
+                setAddingComponent(true)
+              }}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add Component
+            </button>
+          </div>
+
+          {/* Add component form */}
+          {addingComponent && (
+            <div className="card grid gap-4 lg:grid-cols-3">
+              <div className="space-y-2">
+                <label className="label">Equipment *</label>
+                <select
+                  className="input"
+                  value={newCompForm.equipment_id ?? ''}
+                  onChange={(e) => setNewCompForm((f) => ({ ...f, equipment_id: e.target.value ? Number(e.target.value) : null }))}
+                >
+                  <option value="">Select equipment</option>
+                  {allEquipment.map((eq) => <option key={eq.id} value={eq.id}>{eq.equipment_name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="label">Component Name *</label>
+                <input type="text" className="input" placeholder="Component name" value={newCompForm.component_name} onChange={(e) => setNewCompForm((f) => ({ ...f, component_name: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <label className="label">Manufacturer</label>
+                <input type="text" className="input" value={newCompForm.manufacturer} onChange={(e) => setNewCompForm((f) => ({ ...f, manufacturer: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <label className="label">Model Number</label>
+                <input type="text" className="input" value={newCompForm.model_number} onChange={(e) => setNewCompForm((f) => ({ ...f, model_number: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <label className="label">Last Service Date</label>
+                <input type="date" className="input" value={newCompForm.last_service_date} onChange={(e) => setNewCompForm((f) => ({ ...f, last_service_date: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <label className="label">Interval (days)</label>
+                <input type="number" min={1} className="input" value={newCompForm.service_interval_days ?? ''} onChange={(e) => setNewCompForm((f) => ({ ...f, service_interval_days: e.target.value ? Number(e.target.value) : null }))} />
+              </div>
+              <div className="space-y-2">
+                <label className="label">Next Service</label>
+                <div className="text-sm text-gray-700 py-2">{calculateNextServiceDate(newCompForm.last_service_date, newCompForm.service_interval_days) || '—'}</div>
+              </div>
+              <div className="space-y-2">
+                <label className="label">Service Status</label>
+                <div className="text-sm text-gray-700 py-2">{calculateServiceStatus(newCompForm.last_service_date, newCompForm.service_interval_days)}</div>
+              </div>
+              <div className="space-y-2">
+                <label className="label">Status</label>
+                <select className="input" value={newCompForm.status} onChange={(e) => setNewCompForm((f) => ({ ...f, status: e.target.value }))}>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+              <div className="lg:col-span-3 space-y-2">
+                <label className="label">Description</label>
+                <textarea className="input resize-none" rows={2} value={newCompForm.description} onChange={(e) => setNewCompForm((f) => ({ ...f, description: e.target.value }))} />
+              </div>
+              <div className="lg:col-span-3 space-y-2">
+                <label className="label">Notes</label>
+                <input type="text" className="input" value={newCompForm.notes} onChange={(e) => setNewCompForm((f) => ({ ...f, notes: e.target.value }))} />
+              </div>
+              <div className="flex items-end gap-2">
+                <button
+                  disabled={compFormSaving}
+                  onClick={() => handleCreateComponent(newCompForm, () => { setAddingComponent(false); setNewCompForm({ ...EMPTY_COMP_FORM }); loadComponents() })}
+                  className="btn-primary flex items-center gap-1.5"
+                >
+                  {compFormSaving ? <LoadingSpinner size="sm" /> : <Check className="h-4 w-4" />}
+                  Save
+                </button>
+                <button onClick={() => setAddingComponent(false)} className="btn-secondary">Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {/* Components table */}
+          {componentLoading ? (
+            <div className="flex h-40 items-center justify-center"><LoadingSpinner size="lg" /></div>
+          ) : (
+            <div className="table-container">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Component Name</th>
+                    <th>Equipment</th>
+                    <th>Plant</th>
+                    <th>Manufacturer</th>
+                    <th>Model No.</th>
+                    <th>Last Service</th>
+                    <th>Interval</th>
+                    <th>Next Service</th>
+                    <th>Service Status</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {components.map((comp) => (
+                    <tr
+                      key={comp.id}
+                      className="cursor-pointer hover:bg-blue-50/50 transition-colors"
+                      onClick={() => {
+                        setComponentDetailModal(comp)
+                        setComponentModalEditing(false)
+                      }}
+                    >
+                      <td className="font-medium">{comp.component_name}</td>
+                      <td className="text-gray-600">{comp.equipment_name || '—'}</td>
+                      <td className="text-gray-500">{comp.plant_name || '—'}</td>
+                      <td className="text-sm text-gray-600">{comp.manufacturer || '—'}</td>
+                      <td className="text-sm text-gray-600">{comp.model_number || '—'}</td>
+                      <td className="text-sm text-gray-600">{comp.last_service_date || '—'}</td>
+                      <td className="text-sm text-gray-600">{comp.service_interval_days ?? '—'}</td>
+                      <td className="text-sm text-gray-600">{comp.next_service_date || '—'}</td>
+                      <td>
+                        <span className={`badge ${serviceStatusBadge(comp.service_status)}`}>
+                          {comp.service_status || 'Not Scheduled'}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`badge ${comp.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                          {comp.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {components.length === 0 && (
+                    <tr>
+                      <td colSpan={10} className="text-center text-gray-400 py-8">No components found</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {totalComponents > COMPONENT_PAGE_SIZE && (
+            <div className="flex items-center justify-between mt-2">
+              <span className="text-sm text-gray-500">
+                Showing {componentPage * COMPONENT_PAGE_SIZE + 1}–{Math.min((componentPage + 1) * COMPONENT_PAGE_SIZE, totalComponents)} of {totalComponents}
+              </span>
+              <div className="flex items-center gap-2">
+                <button className="btn-secondary btn-sm" onClick={() => setComponentPage((p) => Math.max(0, p - 1))} disabled={componentPage === 0}>
+                  <ChevronLeft className="h-4 w-4" /> Previous
+                </button>
+                <span className="text-sm text-gray-600">Page {componentPage + 1} of {Math.ceil(totalComponents / COMPONENT_PAGE_SIZE)}</span>
+                <button className="btn-secondary btn-sm" onClick={() => setComponentPage((p) => p + 1)} disabled={(componentPage + 1) * COMPONENT_PAGE_SIZE >= totalComponents}>
+                  Next <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Equipment Tab ────────────────────────────────────────────────────── */}
+      {pageTab === 'equipment' && (
+      <>
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
       {/* Plants panel */}
       <div className="card space-y-3">
@@ -929,6 +1458,8 @@ export default function EquipmentManagement() {
 
       </div>
 
+      </>) } {/* end equipment tab */}
+
       {/* ── Equipment Details Modal ─────────────────────────────────────────── */}
       {(detailsModalLoading || detailsModal !== null) && (
         <div
@@ -1178,9 +1709,9 @@ export default function EquipmentManagement() {
                 {showServiceForm && (
                   equipmentActiveCard ? (
                     /* ── Complete form ── */
-                    <div className="border-t pt-4 space-y-4">
-                      <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                        <Check className="h-4 w-4 text-green-600" />
+                    <div className="rounded-lg border border-green-200 bg-green-50 p-4 space-y-4">
+                      <h3 className="text-sm font-semibold text-green-800 flex items-center gap-2">
+                        <Check className="h-4 w-4" />
                         Complete Service — <span className="font-mono">{equipmentActiveCard.job_card_number}</span>
                       </h3>
                       <div className="grid gap-4 sm:grid-cols-2">
@@ -1298,6 +1829,211 @@ export default function EquipmentManagement() {
                   )
                 )}
 
+                {/* Components section */}
+                <div className="border-t pt-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+                      <Cpu className="h-4 w-4 text-gray-500" />
+                      Components ({modalComponents.length})
+                    </h3>
+                    <button
+                      className="btn-secondary btn-sm"
+                      onClick={() => {
+                        setModalCompForm({ ...EMPTY_COMP_FORM, equipment_id: detailsModal!.id })
+                        setAddingModalComp(true)
+                        setEditingModalComp(null)
+                      }}
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Add
+                    </button>
+                  </div>
+
+                  {addingModalComp && (
+                    <div className="rounded-lg border border-gray-200 p-4 space-y-3 bg-gray-50">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-1">
+                          <label className="label">Component Name *</label>
+                          <input type="text" className="input" value={modalCompForm.component_name} onChange={(e) => setModalCompForm((f) => ({ ...f, component_name: e.target.value }))} />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="label">Manufacturer</label>
+                          <input type="text" className="input" value={modalCompForm.manufacturer} onChange={(e) => setModalCompForm((f) => ({ ...f, manufacturer: e.target.value }))} />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="label">Model Number</label>
+                          <input type="text" className="input" value={modalCompForm.model_number} onChange={(e) => setModalCompForm((f) => ({ ...f, model_number: e.target.value }))} />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="label">Status</label>
+                          <select className="input" value={modalCompForm.status} onChange={(e) => setModalCompForm((f) => ({ ...f, status: e.target.value }))}>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="label">Last Service Date</label>
+                          <input type="date" className="input" value={modalCompForm.last_service_date} onChange={(e) => setModalCompForm((f) => ({ ...f, last_service_date: e.target.value }))} />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="label">Interval (days)</label>
+                          <input type="number" min={1} className="input" value={modalCompForm.service_interval_days ?? ''} onChange={(e) => setModalCompForm((f) => ({ ...f, service_interval_days: e.target.value ? Number(e.target.value) : null }))} />
+                        </div>
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className="label">Notes</label>
+                          <input type="text" className="input" value={modalCompForm.notes} onChange={(e) => setModalCompForm((f) => ({ ...f, notes: e.target.value }))} />
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          disabled={modalCompSaving}
+                          onClick={async () => {
+                            if (!modalCompForm.component_name.trim() || !detailsModal?.id) return
+                            setModalCompSaving(true)
+                            try {
+                              await createComponent({
+                                equipment_id: detailsModal.id,
+                                component_name: modalCompForm.component_name.trim(),
+                                manufacturer: modalCompForm.manufacturer || null,
+                                model_number: modalCompForm.model_number || null,
+                                last_service_date: modalCompForm.last_service_date || null,
+                                service_interval_days: modalCompForm.service_interval_days,
+                                notes: modalCompForm.notes || null,
+                                status: modalCompForm.status,
+                              })
+                              setAddingModalComp(false)
+                              setModalCompForm({ ...EMPTY_COMP_FORM })
+                              loadModalComponents(detailsModal.id)
+                            } catch (e: any) {
+                              setDetailsModalError(e?.response?.data?.detail || 'Failed to save component')
+                            } finally {
+                              setModalCompSaving(false)
+                            }
+                          }}
+                          className="btn-primary flex items-center gap-1.5"
+                        >
+                          {modalCompSaving ? <LoadingSpinner size="sm" /> : <Check className="h-4 w-4" />}
+                          Save Component
+                        </button>
+                        <button onClick={() => setAddingModalComp(false)} className="btn-secondary">Cancel</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {modalCompLoading ? (
+                    <div className="flex h-16 items-center justify-center"><LoadingSpinner /></div>
+                  ) : modalComponents.length === 0 ? (
+                    <p className="text-xs text-gray-400">No components linked to this equipment.</p>
+                  ) : (
+                    <div className="table-container">
+                      <table className="table text-sm">
+                        <thead>
+                          <tr>
+                            <th>Component</th>
+                            <th>Manufacturer</th>
+                            <th>Last Service</th>
+                            <th>Next Service</th>
+                            <th>Service Status</th>
+                            <th>Status</th>
+                            <th></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {modalComponents.map((comp) => (
+                            <tr key={comp.id}>
+                              {editingModalComp?.id === comp.id ? (
+                                <>
+                                  <td><input type="text" className="input text-sm py-1" value={editModalCompForm.component_name} onChange={(e) => setEditModalCompForm((f) => ({ ...f, component_name: e.target.value }))} /></td>
+                                  <td><input type="text" className="input text-sm py-1" value={editModalCompForm.manufacturer} onChange={(e) => setEditModalCompForm((f) => ({ ...f, manufacturer: e.target.value }))} /></td>
+                                  <td><input type="date" className="input text-sm py-1" value={editModalCompForm.last_service_date} onChange={(e) => setEditModalCompForm((f) => ({ ...f, last_service_date: e.target.value }))} /></td>
+                                  <td className="text-gray-600">{calculateNextServiceDate(editModalCompForm.last_service_date, editModalCompForm.service_interval_days) || '—'}</td>
+                                  <td className="text-gray-600">{calculateServiceStatus(editModalCompForm.last_service_date, editModalCompForm.service_interval_days)}</td>
+                                  <td>
+                                    <select className="input text-sm py-1" value={editModalCompForm.status} onChange={(e) => setEditModalCompForm((f) => ({ ...f, status: e.target.value }))}>
+                                      <option value="active">Active</option>
+                                      <option value="inactive">Inactive</option>
+                                    </select>
+                                  </td>
+                                  <td>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        disabled={modalCompSaving}
+                                        onClick={async () => {
+                                          if (!detailsModal?.id) return
+                                          setModalCompSaving(true)
+                                          try {
+                                            await updateComponent(comp.id, {
+                                              component_name: editModalCompForm.component_name.trim(),
+                                              manufacturer: editModalCompForm.manufacturer || null,
+                                              last_service_date: editModalCompForm.last_service_date || null,
+                                              service_interval_days: editModalCompForm.service_interval_days,
+                                              status: editModalCompForm.status,
+                                            })
+                                            setEditingModalComp(null)
+                                            loadModalComponents(detailsModal.id)
+                                          } catch (e: any) {
+                                            setDetailsModalError(e?.response?.data?.detail || 'Failed to update component')
+                                          } finally {
+                                            setModalCompSaving(false)
+                                          }
+                                        }}
+                                        className="text-green-600 hover:text-green-700"
+                                      ><Check className="h-4 w-4" /></button>
+                                      <button onClick={() => setEditingModalComp(null)} className="text-gray-400"><X className="h-4 w-4" /></button>
+                                    </div>
+                                  </td>
+                                </>
+                              ) : (
+                                <>
+                                  <td className="font-medium">{comp.component_name}</td>
+                                  <td className="text-gray-600">{comp.manufacturer || '—'}</td>
+                                  <td className="text-gray-600">{comp.last_service_date || '—'}</td>
+                                  <td className="text-gray-600">{comp.next_service_date || '—'}</td>
+                                  <td>
+                                    <span className={`badge ${serviceStatusBadge(comp.service_status)}`}>
+                                      {comp.service_status || 'Not Scheduled'}
+                                    </span>
+                                  </td>
+                                  <td>
+                                    <span className={`badge ${comp.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                                      {comp.status}
+                                    </span>
+                                  </td>
+                                  <td>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        onClick={() => {
+                                          setEditingModalComp(comp)
+                                          setEditModalCompForm({
+                                            equipment_id: comp.equipment_id,
+                                            component_name: comp.component_name,
+                                            manufacturer: comp.manufacturer || '',
+                                            model_number: comp.model_number || '',
+                                            description: comp.description || '',
+                                            last_service_date: comp.last_service_date || '',
+                                            service_interval_days: comp.service_interval_days,
+                                            notes: comp.notes || '',
+                                            status: comp.status,
+                                          })
+                                          setAddingModalComp(false)
+                                        }}
+                                        className="text-gray-400 hover:text-blue-600"
+                                      ><Pencil className="h-3.5 w-3.5" /></button>
+                                      <button
+                                        onClick={() => handleDeleteComponent(comp.id, () => detailsModal?.id && loadModalComponents(detailsModal.id))}
+                                        className="text-gray-400 hover:text-red-600"
+                                      ><Trash2 className="h-3.5 w-3.5" /></button>
+                                    </div>
+                                  </td>
+                                </>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
                 {/* Recent Service History */}
                 <div className="border-t pt-4 space-y-3">
                   <h3 className="text-sm font-semibold text-gray-700">Recent Service History</h3>
@@ -1394,6 +2130,374 @@ export default function EquipmentManagement() {
                   <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600">{detailsModalError}</div>
                 </div>
               ) : null
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Component Details Modal ──────────────────────────────────────── */}
+      {componentDetailModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto"
+          onClick={() => { setComponentDetailModal(null); setComponentModalEditing(false) }}
+        >
+          <div
+            className="card w-full max-w-2xl my-8 space-y-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-800">{componentDetailModal.component_name}</h2>
+                {componentDetailModal.equipment_name && (
+                  <p className="text-sm text-gray-500 mt-0.5">{componentDetailModal.equipment_name}</p>
+                )}
+              </div>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {!componentModalEditing && (
+                  <>
+                    {componentActiveCard ? (
+                      <button
+                        title={`Mark complete — ${componentActiveCard.job_card_number}`}
+                        onClick={() => {
+                          setShowCompServiceForm(true)
+                          setCompServiceFormSuccess('')
+                          setCompCompleteForm({
+                            service_date: '',
+                            performed_by: '',
+                            work_done: parseListField(componentActiveCard.work_to_be_done),
+                            parts_used: parseListField(componentActiveCard.parts_required),
+                            completion_notes: '',
+                          })
+                        }}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded bg-green-600 text-white hover:bg-green-700 transition-colors"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                        Mark Complete
+                      </button>
+                    ) : (
+                      <button
+                        title="Create service job card"
+                        onClick={() => {
+                          setCompServiceFormSuccess('')
+                          setCompServiceForm((f) => ({ ...f, due_date: componentDetailModal.next_service_date || '' }))
+                          setShowCompServiceForm((v) => !v)
+                        }}
+                        className={`p-1.5 rounded transition-colors ${showCompServiceForm ? 'bg-green-100 text-green-700' : 'text-gray-400 hover:text-green-600 hover:bg-green-50'}`}
+                      >
+                        <Zap className="h-4 w-4" />
+                      </button>
+                    )}
+                    <button
+                      title="Edit component"
+                      onClick={() => {
+                        setEditCompForm({
+                          equipment_id: componentDetailModal.equipment_id,
+                          component_name: componentDetailModal.component_name,
+                          manufacturer: componentDetailModal.manufacturer || '',
+                          model_number: componentDetailModal.model_number || '',
+                          description: componentDetailModal.description || '',
+                          last_service_date: componentDetailModal.last_service_date || '',
+                          service_interval_days: componentDetailModal.service_interval_days,
+                          notes: componentDetailModal.notes || '',
+                          status: componentDetailModal.status,
+                        })
+                        setComponentModalEditing(true)
+                      }}
+                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      title="Delete component"
+                      onClick={() => {
+                        const id = componentDetailModal.id
+                        setComponentDetailModal(null)
+                        setComponentModalEditing(false)
+                        handleDeleteComponent(id, loadComponents)
+                      }}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={() => { setComponentDetailModal(null); setComponentModalEditing(false) }}
+                  className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors ml-1"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {componentModalEditing ? (
+              /* ── Edit form inside modal ── */
+              <div className="border-t pt-4 space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="label">Component Name *</label>
+                    <input type="text" className="input" value={editCompForm.component_name} onChange={(e) => setEditCompForm((f) => ({ ...f, component_name: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="label">Manufacturer</label>
+                    <input type="text" className="input" value={editCompForm.manufacturer} onChange={(e) => setEditCompForm((f) => ({ ...f, manufacturer: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="label">Model Number</label>
+                    <input type="text" className="input" value={editCompForm.model_number} onChange={(e) => setEditCompForm((f) => ({ ...f, model_number: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="label">Status</label>
+                    <select className="input" value={editCompForm.status} onChange={(e) => setEditCompForm((f) => ({ ...f, status: e.target.value }))}>
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="label">Last Service Date</label>
+                    <input type="date" className="input" value={editCompForm.last_service_date} onChange={(e) => setEditCompForm((f) => ({ ...f, last_service_date: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="label">Interval (days)</label>
+                    <input type="number" min={1} className="input" value={editCompForm.service_interval_days ?? ''} onChange={(e) => setEditCompForm((f) => ({ ...f, service_interval_days: e.target.value ? Number(e.target.value) : null }))} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="label">Next Service</label>
+                    <div className="text-sm text-gray-700 py-2">{calculateNextServiceDate(editCompForm.last_service_date, editCompForm.service_interval_days) || '—'}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="label">Service Status</label>
+                    <div className="text-sm text-gray-700 py-2">{calculateServiceStatus(editCompForm.last_service_date, editCompForm.service_interval_days)}</div>
+                  </div>
+                  <div className="sm:col-span-2 space-y-1">
+                    <label className="label">Description</label>
+                    <textarea className="input resize-none" rows={2} value={editCompForm.description} onChange={(e) => setEditCompForm((f) => ({ ...f, description: e.target.value }))} />
+                  </div>
+                  <div className="sm:col-span-2 space-y-1">
+                    <label className="label">Notes</label>
+                    <input type="text" className="input" value={editCompForm.notes} onChange={(e) => setEditCompForm((f) => ({ ...f, notes: e.target.value }))} />
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button
+                    disabled={compFormSaving}
+                    onClick={() =>
+                      handleUpdateComponent(componentDetailModal.id, editCompForm, () => {
+                        const updated: EquipmentComponent = {
+                          ...componentDetailModal,
+                          component_name: editCompForm.component_name,
+                          manufacturer: editCompForm.manufacturer || null,
+                          model_number: editCompForm.model_number || null,
+                          description: editCompForm.description || null,
+                          last_service_date: editCompForm.last_service_date || null,
+                          service_interval_days: editCompForm.service_interval_days,
+                          notes: editCompForm.notes || null,
+                          status: editCompForm.status,
+                          next_service_date: calculateNextServiceDate(editCompForm.last_service_date, editCompForm.service_interval_days) || null,
+                          service_status: calculateServiceStatus(editCompForm.last_service_date, editCompForm.service_interval_days),
+                        }
+                        setComponentDetailModal(updated)
+                        setComponentModalEditing(false)
+                        loadComponents()
+                      })
+                    }
+                    className="btn-primary flex items-center gap-1.5"
+                  >
+                    {compFormSaving ? <LoadingSpinner size="sm" /> : <Check className="h-4 w-4" />}
+                    Save changes
+                  </button>
+                  <button
+                    onClick={() => setComponentModalEditing(false)}
+                    className="btn-secondary"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* ── View mode ── */
+              <div className="border-t pt-4 space-y-4">
+
+                {compServiceFormError && (
+                  <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600">{compServiceFormError}</div>
+                )}
+                {compServiceFormSuccess && (
+                  <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700 flex items-center justify-between">
+                    {compServiceFormSuccess}
+                    <button onClick={() => setCompServiceFormSuccess('')}><X className="h-4 w-4" /></button>
+                  </div>
+                )}
+
+                {/* Service job card form */}
+                {showCompServiceForm && (
+                  componentActiveCard ? (
+                    <div className="rounded-lg border border-green-200 bg-green-50 p-4 space-y-4">
+                      <h3 className="text-sm font-semibold text-green-800 flex items-center gap-2">
+                        <Check className="h-4 w-4" />
+                        Complete Service — <span className="font-mono">{componentActiveCard.job_card_number}</span>
+                      </h3>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-1">
+                          <label className="label">Service Date *</label>
+                          <input type="date" className="input" value={compCompleteForm.service_date} onChange={(e) => setCompCompleteForm((f) => ({ ...f, service_date: e.target.value }))} />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="label">Performed By</label>
+                          <input type="text" className="input" placeholder={componentActiveCard.assigned_artisan || ''} value={compCompleteForm.performed_by} onChange={(e) => setCompCompleteForm((f) => ({ ...f, performed_by: e.target.value }))} />
+                        </div>
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className="label">Work Done</label>
+                          <ListInput items={compCompleteForm.work_done} onChange={(items) => setCompCompleteForm((f) => ({ ...f, work_done: items }))} placeholder="Add completed task…" />
+                        </div>
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className="label">Parts Used</label>
+                          <ListInput items={compCompleteForm.parts_used} onChange={(items) => setCompCompleteForm((f) => ({ ...f, parts_used: items }))} placeholder="Add part used…" />
+                        </div>
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className="label">Completion Notes</label>
+                          <textarea className="input resize-none" rows={2} value={compCompleteForm.completion_notes} onChange={(e) => setCompCompleteForm((f) => ({ ...f, completion_notes: e.target.value }))} />
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={handleCompleteCompJobCard} disabled={compCompleting} className="btn-primary flex items-center gap-1.5">
+                          {compCompleting ? <LoadingSpinner size="sm" /> : <Check className="h-4 w-4" />}
+                          Confirm Complete
+                        </button>
+                        <button onClick={() => setShowCompServiceForm(false)} className="btn-secondary">Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-4">
+                      <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                        <Zap className="h-4 w-4 text-green-600" />
+                        Create Service Job Card
+                      </h3>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-1">
+                          <label className="label">Service Type</label>
+                          <input type="text" className="input" value={compServiceForm.service_type} onChange={(e) => setCompServiceForm((f) => ({ ...f, service_type: e.target.value }))} />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="label">Priority</label>
+                          <select className="input" value={compServiceForm.priority} onChange={(e) => setCompServiceForm((f) => ({ ...f, priority: e.target.value }))}>
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                            <option value="critical">Critical</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="label">Start Date</label>
+                          <input type="date" className="input" value={compServiceForm.start_date} onChange={(e) => setCompServiceForm((f) => ({ ...f, start_date: e.target.value }))} />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="label">Due Date</label>
+                          <input type="date" className="input" value={compServiceForm.due_date} onChange={(e) => setCompServiceForm((f) => ({ ...f, due_date: e.target.value }))} />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="label">Assigned Artisan</label>
+                          <input type="text" className="input" value={compServiceForm.assigned_artisan} onChange={(e) => setCompServiceForm((f) => ({ ...f, assigned_artisan: e.target.value }))} />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="label">Assigned By</label>
+                          <input type="text" className="input" value={compServiceForm.assigned_by} onChange={(e) => setCompServiceForm((f) => ({ ...f, assigned_by: e.target.value }))} />
+                        </div>
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className="label">Service Description</label>
+                          <textarea className="input resize-none" rows={2} value={compServiceForm.service_description} onChange={(e) => setCompServiceForm((f) => ({ ...f, service_description: e.target.value }))} />
+                        </div>
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className="label">Work To Be Done</label>
+                          <ListInput items={compServiceForm.work_to_be_done} onChange={(items) => setCompServiceForm((f) => ({ ...f, work_to_be_done: items }))} placeholder="Add task…" />
+                        </div>
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className="label">Parts Required</label>
+                          <ListInput items={compServiceForm.parts_required} onChange={(items) => setCompServiceForm((f) => ({ ...f, parts_required: items }))} placeholder="Add part…" />
+                        </div>
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className="label">Notes</label>
+                          <textarea className="input resize-none" rows={2} value={compServiceForm.notes} onChange={(e) => setCompServiceForm((f) => ({ ...f, notes: e.target.value }))} />
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={handleCreateCompJobCard} disabled={compServiceFormSaving} className="btn-primary flex items-center gap-1.5">
+                          {compServiceFormSaving ? <LoadingSpinner size="sm" /> : <Check className="h-4 w-4" />}
+                          Save Job Card
+                        </button>
+                        <button onClick={() => setShowCompServiceForm(false)} className="btn-secondary">Cancel</button>
+                      </div>
+                    </div>
+                  )
+                )}
+
+                <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3">
+                  <InfoField label="Equipment" value={componentDetailModal.equipment_name} />
+                  <InfoField label="Plant" value={componentDetailModal.plant_name} />
+                  <InfoField label="Manufacturer" value={componentDetailModal.manufacturer} />
+                  <InfoField label="Model Number" value={componentDetailModal.model_number} />
+                  <InfoField label="Last Service" value={componentDetailModal.last_service_date} />
+                  <InfoField label="Interval" value={componentDetailModal.service_interval_days != null ? `${componentDetailModal.service_interval_days} days` : null} />
+                  <InfoField label="Next Service" value={componentDetailModal.next_service_date} />
+                  <InfoField label="Service Status">
+                    <span className={`badge ${serviceStatusBadge(componentDetailModal.service_status)}`}>
+                      {componentDetailModal.service_status || 'Not Scheduled'}
+                    </span>
+                  </InfoField>
+                  <InfoField label="Status">
+                    <span className={`badge ${componentDetailModal.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                      {componentDetailModal.status}
+                    </span>
+                  </InfoField>
+                </div>
+                {componentDetailModal.description && (
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Description</p>
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{componentDetailModal.description}</p>
+                  </div>
+                )}
+                {componentDetailModal.notes && (
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Notes</p>
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{componentDetailModal.notes}</p>
+                  </div>
+                )}
+
+                {/* Service history */}
+                <div className="border-t pt-4 space-y-2">
+                  <h3 className="text-sm font-semibold text-gray-700">Service History</h3>
+                  {componentModalHistoryLoading ? (
+                    <div className="flex h-10 items-center justify-center"><LoadingSpinner /></div>
+                  ) : componentModalHistory.length === 0 ? (
+                    <p className="text-xs text-gray-400">No service history recorded for this component.</p>
+                  ) : (
+                    <div className="table-container">
+                      <table className="table text-sm">
+                        <thead>
+                          <tr>
+                            <th>Job Card</th>
+                            <th>Completed</th>
+                            <th>Type</th>
+                            <th>Performed By</th>
+                            <th>Work Done</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {componentModalHistory.map((jc) => (
+                            <tr key={jc.id}>
+                              <td className="font-mono text-xs text-gray-500">{jc.job_card_number}</td>
+                              <td className="text-gray-600">{jc.completed_date || '—'}</td>
+                              <td className="text-gray-600">{jc.service_type || '—'}</td>
+                              <td className="text-gray-600">{jc.assigned_artisan || '—'}</td>
+                              <td className="text-gray-500 max-w-[180px] truncate">{jc.work_to_be_done || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         </div>

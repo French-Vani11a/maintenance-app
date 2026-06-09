@@ -55,21 +55,30 @@ export default function ServiceDashboard() {
           <div className="rounded-full bg-purple-200 p-3"><AlertTriangle className="h-6 w-6 text-purple-700" /></div>
           <div>
             <p className="text-sm text-purple-500">Overdue Services</p>
-            <p className="text-2xl font-bold text-purple-700">{stats.overdue_count}</p>
+            <p className="text-2xl font-bold text-purple-700">{stats.overdue_count + (stats.overdue_component_count ?? 0)}</p>
+            {(stats.overdue_component_count ?? 0) > 0 && (
+              <p className="text-xs text-purple-400">{stats.overdue_count} equip · {stats.overdue_component_count} comp</p>
+            )}
           </div>
         </div>
         <div className="rounded-xl bg-red-100 border border-red-200 p-4 flex items-center gap-4">
           <div className="rounded-full bg-red-200 p-3"><AlertTriangle className="h-6 w-6 text-red-700" /></div>
           <div>
             <p className="text-sm text-red-500">Due Today</p>
-            <p className="text-2xl font-bold text-red-700">{stats.due_today_count}</p>
+            <p className="text-2xl font-bold text-red-700">{stats.due_today_count + (stats.due_today_component_count ?? 0)}</p>
+            {(stats.due_today_component_count ?? 0) > 0 && (
+              <p className="text-xs text-red-400">{stats.due_today_count} equip · {stats.due_today_component_count} comp</p>
+            )}
           </div>
         </div>
         <div className="rounded-xl bg-yellow-100 border border-yellow-200 p-4 flex items-center gap-4">
           <div className="rounded-full bg-yellow-200 p-3"><CalendarCheck className="h-6 w-6 text-yellow-700" /></div>
           <div>
             <p className="text-sm text-yellow-600">Due Soon</p>
-            <p className="text-2xl font-bold text-yellow-700">{stats.due_soon_count}</p>
+            <p className="text-2xl font-bold text-yellow-700">{stats.due_soon_count + (stats.due_soon_component_count ?? 0)}</p>
+            {(stats.due_soon_component_count ?? 0) > 0 && (
+              <p className="text-xs text-yellow-500">{stats.due_soon_count} equip · {stats.due_soon_component_count} comp</p>
+            )}
           </div>
         </div>
         <div className="rounded-xl bg-green-100 border border-green-200 p-4 flex items-center gap-4">
@@ -126,26 +135,42 @@ export default function ServiceDashboard() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>Equipment</th>
+                  <th>Name</th>
+                  <th>Type</th>
                   <th>Plant</th>
                   <th>Next Service</th>
                   <th>Status</th>
                 </tr>
               </thead>
               <tbody>
-                {stats.upcoming_services.length === 0 ? (
+                {stats.upcoming_services.length === 0 && (stats.upcoming_component_services ?? []).length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="text-center text-gray-400 py-6">No upcoming services</td>
+                    <td colSpan={5} className="text-center text-gray-400 py-6">No upcoming services</td>
                   </tr>
                 ) : (
-                  stats.upcoming_services.map((item) => (
-                    <tr key={item.id}>
-                      <td>{item.equipment_name}</td>
-                      <td>{item.plant_name || '—'}</td>
-                      <td>{item.next_service_date || '—'}</td>
-                      <td>{item.status}</td>
-                    </tr>
-                  ))
+                  <>
+                    {stats.upcoming_services.map((item) => (
+                      <tr key={`eq-${item.id}`}>
+                        <td>{item.equipment_name}</td>
+                        <td><span className="badge bg-blue-100 text-blue-800">Equipment</span></td>
+                        <td>{item.plant_name || '—'}</td>
+                        <td>{item.next_service_date || '—'}</td>
+                        <td>{item.status}</td>
+                      </tr>
+                    ))}
+                    {(stats.upcoming_component_services ?? []).map((item) => (
+                      <tr key={`comp-${item.id}`}>
+                        <td>
+                          <span>{item.component_name}</span>
+                          <span className="block text-xs text-gray-400">{item.equipment_name}</span>
+                        </td>
+                        <td><span className="badge bg-purple-100 text-purple-800">Component</span></td>
+                        <td>{item.plant_name || '—'}</td>
+                        <td>{item.next_service_date || '—'}</td>
+                        <td>{item.status}</td>
+                      </tr>
+                    ))}
+                  </>
                 )}
               </tbody>
             </table>
@@ -158,24 +183,39 @@ export default function ServiceDashboard() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>Equipment</th>
+                  <th>Name</th>
+                  <th>Type</th>
                   <th>Plant</th>
                   <th>Next Service</th>
                 </tr>
               </thead>
               <tbody>
-                {stats.overdue_services.length === 0 ? (
+                {stats.overdue_services.length === 0 && (stats.overdue_component_services ?? []).length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="text-center text-gray-400 py-6">No overdue services</td>
+                    <td colSpan={4} className="text-center text-gray-400 py-6">No overdue services</td>
                   </tr>
                 ) : (
-                  stats.overdue_services.map((item) => (
-                    <tr key={item.id}>
-                      <td>{item.equipment_name}</td>
-                      <td>{item.plant_name || '—'}</td>
-                      <td>{item.next_service_date || '—'}</td>
-                    </tr>
-                  ))
+                  <>
+                    {stats.overdue_services.map((item) => (
+                      <tr key={`eq-${item.id}`}>
+                        <td>{item.equipment_name}</td>
+                        <td><span className="badge bg-blue-100 text-blue-800">Equipment</span></td>
+                        <td>{item.plant_name || '—'}</td>
+                        <td>{item.next_service_date || '—'}</td>
+                      </tr>
+                    ))}
+                    {(stats.overdue_component_services ?? []).map((item) => (
+                      <tr key={`comp-${item.id}`}>
+                        <td>
+                          <span>{item.component_name}</span>
+                          <span className="block text-xs text-gray-400">{item.equipment_name}</span>
+                        </td>
+                        <td><span className="badge bg-purple-100 text-purple-800">Component</span></td>
+                        <td>{item.plant_name || '—'}</td>
+                        <td>{item.next_service_date || '—'}</td>
+                      </tr>
+                    ))}
+                  </>
                 )}
               </tbody>
             </table>

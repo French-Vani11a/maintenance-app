@@ -5,6 +5,8 @@ import type {
   DueEquipment,
   EnrichedServiceHistory,
   Equipment,
+  EquipmentComponent,
+  EquipmentComponentsResponse,
   EquipmentDetails,
   EquipmentGroup,
   FaultCategory,
@@ -196,6 +198,61 @@ export async function createServiceHistory(data: Partial<ServiceHistory>): Promi
   return res.data
 }
 
+// ── Equipment Components ─────────────────────────────────────────────────────
+
+export async function getComponents(params?: {
+  equipment_id?: number
+  plant_id?: number
+  service_status?: string
+  search?: string
+  skip?: number
+  limit?: number
+}): Promise<EquipmentComponentsResponse> {
+  const res = await api.get<EquipmentComponentsResponse>('/equipment-components/', { params })
+  return res.data
+}
+
+export async function getDueComponents(params?: {
+  search?: string
+  plant_id?: number
+}): Promise<EquipmentComponent[]> {
+  const res = await api.get<EquipmentComponent[]>('/equipment-components/due', { params })
+  return res.data
+}
+
+export async function createComponent(data: {
+  equipment_id: number
+  component_name: string
+  manufacturer?: string | null
+  model_number?: string | null
+  description?: string | null
+  last_service_date?: string | null
+  service_interval_days?: number | null
+  notes?: string | null
+  status?: string
+}): Promise<EquipmentComponent> {
+  const res = await api.post<EquipmentComponent>('/equipment-components/', data)
+  return res.data
+}
+
+export async function updateComponent(id: number, data: Partial<{
+  component_name: string
+  manufacturer: string | null
+  model_number: string | null
+  description: string | null
+  last_service_date: string | null
+  service_interval_days: number | null
+  notes: string | null
+  status: string
+}>): Promise<EquipmentComponent> {
+  const res = await api.put<EquipmentComponent>(`/equipment-components/${id}`, data)
+  return res.data
+}
+
+export async function deleteComponent(id: number): Promise<void> {
+  await api.delete(`/equipment-components/${id}`)
+}
+
 // ── Service Job Cards ────────────────────────────────────────────────────────
 
 export async function getDueEquipment(params?: {
@@ -220,6 +277,7 @@ export async function getJobCards(params?: {
   status?: string
   plant_id?: number
   equipment_id?: number
+  component_id?: number
   priority?: string
   search?: string
   skip?: number
@@ -231,6 +289,7 @@ export async function getJobCards(params?: {
 
 export async function createJobCard(data: {
   equipment_id: number
+  component_id?: number | null
   plant_id?: number | null
   service_type?: string | null
   due_date?: string | null

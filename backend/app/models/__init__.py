@@ -1,5 +1,6 @@
 from app.models.plant import Plant
 from app.models.equipment import Equipment
+from app.models.equipment_component import EquipmentComponent
 from app.models.user import User
 from app.models.fault_category import FaultCategory
 from app.models.maintenance_record import MaintenanceRecord
@@ -11,6 +12,7 @@ from app.models.parts_replacement import PartsReplacement
 __all__ = [
     "Plant",
     "Equipment",
+    "EquipmentComponent",
     "User",
     "FaultCategory",
     "MaintenanceRecord",

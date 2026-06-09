@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 class ServiceJobCardBase(BaseModel):
     equipment_id: int
+    component_id: Optional[int] = None
     plant_id: Optional[int] = None
     service_type: Optional[str] = None
     due_date: Optional[date] = None
@@ -24,6 +25,7 @@ class ServiceJobCardCreate(ServiceJobCardBase):
 
 
 class ServiceJobCardUpdate(BaseModel):
+    component_id: Optional[int] = None
     service_type: Optional[str] = None
     due_date: Optional[date] = None
     service_description: Optional[str] = None

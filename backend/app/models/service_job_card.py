@@ -12,6 +12,7 @@ class ServiceJobCard(Base):
     id = Column(Integer, primary_key=True, index=True)
     job_card_number = Column(String(30), unique=True, index=True, nullable=False)
     equipment_id = Column(Integer, ForeignKey("equipment.id"), nullable=False, index=True)
+    component_id = Column(Integer, ForeignKey("equipment_components.id"), nullable=True, index=True)
     plant_id = Column(Integer, ForeignKey("plants.id"), nullable=True)
     service_type = Column(String(100), nullable=True)
     due_date = Column(Date, nullable=True)
@@ -30,5 +31,6 @@ class ServiceJobCard(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     equipment = relationship("Equipment")
+    component = relationship("EquipmentComponent")
     plant = relationship("Plant")
     created_by = relationship("User")

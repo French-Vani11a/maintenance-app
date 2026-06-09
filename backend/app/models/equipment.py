@@ -30,3 +30,4 @@ class Equipment(Base):
     maintenance_records = relationship("MaintenanceRecord", back_populates="equipment")
     service_histories = relationship("ServiceHistory", back_populates="equipment", cascade="all, delete-orphan")
     parts_replacements = relationship("PartsReplacement", back_populates="equipment", cascade="all, delete-orphan")
+    components = relationship("EquipmentComponent", back_populates="equipment", cascade="all, delete-orphan")

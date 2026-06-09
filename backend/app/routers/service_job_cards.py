@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.equipment import Equipment
+from app.models.equipment_component import EquipmentComponent
 from app.models.service_history import ServiceHistory
 from app.models.service_job_card import ServiceJobCard
 from app.models.user import User
@@ -29,6 +30,8 @@ def _enrich(jc: ServiceJobCard) -> dict:
         "equipment_id": jc.equipment_id,
         "equipment_name": jc.equipment.equipment_name if jc.equipment else None,
         "equipment_code": jc.equipment.equipment_code if jc.equipment else None,
+        "component_id": jc.component_id,
+        "component_name": jc.component.component_name if jc.component else None,
         "plant_id": jc.plant_id,
         "plant_name": jc.plant.name if jc.plant else None,
         "service_type": jc.service_type,
@@ -77,6 +80,25 @@ def _update_equipment_after_service(db: Session, equipment_id: int, service_date
             eq.service_status = "Due Soon"
         else:
             eq.service_status = "On Schedule"
+
+
+def _update_component_after_service(db: Session, component_id: int, service_date: date) -> None:
+    comp = db.query(EquipmentComponent).filter(EquipmentComponent.id == component_id).first()
+    if not comp:
+        return
+    comp.last_service_date = service_date
+    if comp.service_interval_days:
+        next_date = service_date + timedelta(days=comp.service_interval_days)
+        comp.next_service_date = next_date
+        today = date.today()
+        if next_date < today:
+            comp.service_status = "Overdue"
+        elif next_date == today:
+            comp.service_status = "Due Today"
+        elif next_date <= today + timedelta(days=14):
+            comp.service_status = "Due Soon"
+        else:
+            comp.service_status = "On Schedule"
 
 
 @router.get("/due-equipment")
@@ -169,6 +191,7 @@ def get_job_cards(
     status: Optional[str] = Query(None),
     plant_id: Optional[int] = Query(None),
     equipment_id: Optional[int] = Query(None),
+    component_id: Optional[int] = Query(None),
     priority: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     skip: int = 0,
@@ -183,6 +206,8 @@ def get_job_cards(
         query = query.filter(ServiceJobCard.plant_id == plant_id)
     if equipment_id:
         query = query.filter(ServiceJobCard.equipment_id == equipment_id)
+    if component_id:
+        query = query.filter(ServiceJobCard.component_id == component_id)
     if priority:
         query = query.filter(ServiceJobCard.priority == priority)
     if search:
@@ -271,7 +296,10 @@ def complete_job_card(
     jc.status = "completed"
     jc.completed_date = data.service_date
 
-    _update_equipment_after_service(db, jc.equipment_id, data.service_date)
+    if jc.component_id:
+        _update_component_after_service(db, jc.component_id, data.service_date)
+    else:
+        _update_equipment_after_service(db, jc.equipment_id, data.service_date)
 
     db.commit()
     db.refresh(jc)

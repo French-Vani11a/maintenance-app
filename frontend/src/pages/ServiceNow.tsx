@@ -19,6 +19,7 @@ import {
   createJobCard,
   deleteJobCard,
   exportServiceHistoryCsv,
+  getDueComponents,
   getDueEquipment,
   getEnrichedServiceHistory,
   getEquipment,
@@ -33,6 +34,7 @@ import type {
   DueEquipment,
   EnrichedServiceHistory,
   Equipment,
+  EquipmentComponent,
   EquipmentGroup,
   Plant,
   ServiceJobCard,
@@ -285,6 +287,7 @@ ${card.notes ? `
 
 const EMPTY_JC_FORM = {
   equipment_id: null as number | null,
+  component_id: null as number | null,
   plant_id: null as number | null,
   service_type: '',
   start_date: '',
@@ -363,6 +366,15 @@ export default function ServiceNow() {
   const [duePage, setDuePage] = useState(0)
   const [dueLoading, setDueLoading] = useState(false)
 
+  // Due components section
+  const [dueComponents, setDueComponents] = useState<EquipmentComponent[]>([])
+  const [dueCompSearch, setDueCompSearch] = useState('')
+  const [dueCompPlantId, setDueCompPlantId] = useState<number | null>(null)
+  const [dueCompStatusFilter, setDueCompStatusFilter] = useState('')
+  const [dueCompPage, setDueCompPage] = useState(0)
+  const [dueCompLoading, setDueCompLoading] = useState(false)
+  const [activeCardsByComponentId, setActiveCardsByComponentId] = useState<Record<number, ServiceJobCard>>({})
+
   // Manual equipment picker (cascading dropdowns)
   const [manualPlantId, setManualPlantId] = useState<number | null>(null)
   const [manualGroupId, setManualGroupId] = useState<number | null>(null)
@@ -374,6 +386,7 @@ export default function ServiceNow() {
   const [jobCards, setJobCards] = useState<ServiceJobCard[]>([])
   const [jobCardSearch, setJobCardSearch] = useState('')
   const [jobCardStatus, setJobCardStatus] = useState('open')
+  const [jobCardType, setJobCardType] = useState<'all' | 'equipment' | 'component'>('all')
   const [jobCardsTotal, setJobCardsTotal] = useState(0)
   const [jobCardsPage, setJobCardsPage] = useState(0)
   const JC_PAGE_SIZE = 20
@@ -385,6 +398,7 @@ export default function ServiceNow() {
   const [jcModal, setJcModal] = useState<'create' | 'view' | null>(null)
   const [jcForm, setJcForm] = useState({ ...EMPTY_JC_FORM })
   const [jcFormEquipmentLabel, setJcFormEquipmentLabel] = useState('')
+  const [jcFormComponentLabel, setJcFormComponentLabel] = useState('')
   const [viewingCard, setViewingCard] = useState<ServiceJobCard | null>(null)
   const [jcSaving, setJcSaving] = useState(false)
   const [jcError, setJcError] = useState('')
@@ -408,6 +422,7 @@ export default function ServiceNow() {
   const [histDateTo, setHistDateTo] = useState('')
   const [histArtisan, setHistArtisan] = useState('')
   const [histServiceType, setHistServiceType] = useState('')
+  const [histType, setHistType] = useState<'all' | 'equipment' | 'component'>('all')
 
   // Service history detail modal
   const [selectedHistory, setSelectedHistory] = useState<EnrichedServiceHistory | null>(null)
@@ -415,7 +430,7 @@ export default function ServiceNow() {
 
   // Load plants + initial data
   useEffect(() => {
-    Promise.all([getPlants(), loadDueEquipment(), loadJobCards(), loadActiveCards()])
+    Promise.all([getPlants(), loadDueEquipment(), loadDueComponents(), loadJobCards(), loadActiveCards()])
       .then(([p]) => {
         setPlants(p)
         const card = (location.state as any)?.openJobCard
@@ -432,6 +447,8 @@ export default function ServiceNow() {
 
   useEffect(() => { loadDueEquipment() }, [dueSearch, duePlantId])
   useEffect(() => { setDuePage(0) }, [dueSearch, duePlantId, dueStatusFilter])
+  useEffect(() => { loadDueComponents() }, [dueCompSearch, dueCompPlantId])
+  useEffect(() => { setDueCompPage(0) }, [dueCompSearch, dueCompPlantId, dueCompStatusFilter])
 
   useEffect(() => {
     if (manualPlantId) {
@@ -449,7 +466,7 @@ export default function ServiceNow() {
       .then((res) => setManualEquipmentList(res.equipment))
     setManualEquipmentId(null)
   }, [manualPlantId, manualGroupId])
-  useEffect(() => { setJobCardsPage(0) }, [jobCardSearch, jobCardStatus])
+  useEffect(() => { setJobCardsPage(0) }, [jobCardSearch, jobCardStatus, jobCardType])
   useEffect(() => { loadJobCards() }, [jobCardSearch, jobCardStatus, jobCardsPage])
   useEffect(() => { if (activeTab === 'history') loadHistory() }, [activeTab, histPage])
   useEffect(() => {
@@ -473,6 +490,18 @@ export default function ServiceNow() {
     }
   }
 
+  async function loadDueComponents() {
+    setDueCompLoading(true)
+    try {
+      const items = await getDueComponents({ search: dueCompSearch || undefined, plant_id: dueCompPlantId || undefined })
+      setDueComponents(items)
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || 'Failed to load due components')
+    } finally {
+      setDueCompLoading(false)
+    }
+  }
+
   async function loadJobCards() {
     try {
       const res = await getJobCards({
@@ -491,13 +520,16 @@ export default function ServiceNow() {
   async function loadActiveCards() {
     try {
       const res = await getJobCards({ limit: 1000 })
-      const map: Record<number, ServiceJobCard> = {}
+      const equipMap: Record<number, ServiceJobCard> = {}
+      const compMap: Record<number, ServiceJobCard> = {}
       for (const card of res.job_cards) {
         if (card.status !== 'completed') {
-          map[card.equipment_id] = card
+          equipMap[card.equipment_id] = card
+          if (card.component_id) compMap[card.component_id] = card
         }
       }
-      setActiveCardsByEquipmentId(map)
+      setActiveCardsByEquipmentId(equipMap)
+      setActiveCardsByComponentId(compMap)
     } catch {
       // non-fatal — button state falls back to "Service"
     }
@@ -559,6 +591,22 @@ export default function ServiceNow() {
       _next_service_date: eq.next_service_date || '',
     })
     setJcFormEquipmentLabel(`${eq.equipment_name}${eq.equipment_code ? ' (' + eq.equipment_code + ')' : ''} — ${eq.plant_name ?? 'Unassigned'}`)
+    setJcFormComponentLabel('')
+    setJcError('')
+    setJcModal('create')
+  }
+
+  function openComponentCreateModal(comp: EquipmentComponent) {
+    setJcForm({
+      ...EMPTY_JC_FORM,
+      equipment_id: comp.equipment_id,
+      component_id: comp.id,
+      plant_id: comp.plant_id,
+      due_date: comp.next_service_date || '',
+      _next_service_date: comp.next_service_date || '',
+    })
+    setJcFormEquipmentLabel(`${comp.equipment_name ?? 'Unknown equipment'} — ${comp.plant_name ?? 'Unassigned'}`)
+    setJcFormComponentLabel(comp.component_name)
     setJcError('')
     setJcModal('create')
   }
@@ -593,6 +641,7 @@ export default function ServiceNow() {
   function buildJobCardPayload() {
     return {
       equipment_id: jcForm.equipment_id!,
+      component_id: jcForm.component_id || null,
       plant_id: jcForm.plant_id,
       service_type: jcForm.service_type || null,
       start_date: jcForm.start_date || null,
@@ -615,7 +664,7 @@ export default function ServiceNow() {
       await createJobCard(buildJobCardPayload())
       closeModal()
       setManualEquipmentId(null)
-      await Promise.all([loadDueEquipment(), loadJobCards(), loadActiveCards()])
+      await Promise.all([loadDueEquipment(), loadDueComponents(), loadJobCards(), loadActiveCards()])
     } catch (e: any) {
       setJcError(e?.response?.data?.detail || 'Failed to save job card')
     } finally {
@@ -632,7 +681,7 @@ export default function ServiceNow() {
       closeModal()
       setManualEquipmentId(null)
       printJobCard(card)
-      await Promise.all([loadDueEquipment(), loadJobCards(), loadActiveCards()])
+      await Promise.all([loadDueEquipment(), loadDueComponents(), loadJobCards(), loadActiveCards()])
     } catch (e: any) {
       setJcError(e?.response?.data?.detail || 'Failed to save job card')
     } finally {
@@ -683,7 +732,7 @@ export default function ServiceNow() {
         completion_notes: completeForm.completion_notes || null,
       })
       closeModal()
-      await Promise.all([loadDueEquipment(), loadJobCards(), loadActiveCards()])
+      await Promise.all([loadDueEquipment(), loadDueComponents(), loadJobCards(), loadActiveCards()])
     } catch (e: any) {
       setJcError(e?.response?.data?.detail || 'Failed to complete job card')
     } finally {
@@ -703,10 +752,19 @@ export default function ServiceNow() {
     })
   }
 
-  const overdueCount    = dueEquipment.filter((e) => e.service_status === 'Overdue').length
-  const dueTodayCount   = dueEquipment.filter((e) => e.service_status === 'Due Today').length
-  const dueWithin7Count = dueEquipment.filter((e) => e.service_status === 'Due Soon' || e.service_status === 'Due Today').length
-  const openCardCount   = Object.keys(activeCardsByEquipmentId).length
+  const overdueEquipCount    = dueEquipment.filter((e) => e.service_status === 'Overdue').length
+  const overdueCompCount     = dueComponents.filter((c) => c.service_status === 'Overdue').length
+  const overdueCount         = overdueEquipCount + overdueCompCount
+
+  const dueTodayEquipCount   = dueEquipment.filter((e) => e.service_status === 'Due Today').length
+  const dueTodayCompCount    = dueComponents.filter((c) => c.service_status === 'Due Today').length
+  const dueTodayCount        = dueTodayEquipCount + dueTodayCompCount
+
+  const dueWithin7EquipCount = dueEquipment.filter((e) => e.service_status === 'Due Soon' || e.service_status === 'Due Today').length
+  const dueWithin7CompCount  = dueComponents.filter((c) => c.service_status === 'Due Soon' || c.service_status === 'Due Today').length
+  const dueWithin7Count      = dueWithin7EquipCount + dueWithin7CompCount
+
+  const openCardCount        = Object.keys(activeCardsByEquipmentId).length
 
   const DUE_PAGE_SIZE = 20
   const filteredDueEquipment = dueStatusFilter
@@ -714,7 +772,19 @@ export default function ServiceNow() {
     : dueEquipment
   const dueTotalPages = Math.ceil(filteredDueEquipment.length / DUE_PAGE_SIZE)
   const pagedDueEquipment = filteredDueEquipment.slice(duePage * DUE_PAGE_SIZE, (duePage + 1) * DUE_PAGE_SIZE)
+  const filteredJobCards = jobCardType === 'equipment'
+    ? jobCards.filter((jc) => !jc.component_id)
+    : jobCardType === 'component'
+    ? jobCards.filter((jc) => !!jc.component_id)
+    : jobCards
   const jcTotalPages = Math.ceil(jobCardsTotal / JC_PAGE_SIZE)
+
+  const COMP_PAGE_SIZE = 20
+  const filteredDueComponents = dueCompStatusFilter
+    ? dueComponents.filter((c) => c.service_status === dueCompStatusFilter)
+    : dueComponents
+  const compTotalPages = Math.ceil(filteredDueComponents.length / COMP_PAGE_SIZE)
+  const pagedDueComponents = filteredDueComponents.slice(dueCompPage * COMP_PAGE_SIZE, (dueCompPage + 1) * COMP_PAGE_SIZE)
 
   if (loading) {
     return (
@@ -764,6 +834,7 @@ export default function ServiceNow() {
               <div>
                 <p className="text-2xl font-bold text-purple-700">{overdueCount}</p>
                 <p className="text-xs text-purple-500">Overdue</p>
+                {overdueCompCount > 0 && <p className="text-xs text-purple-400">{overdueEquipCount} equip · {overdueCompCount} comp</p>}
               </div>
             </div>
             <div className="rounded-xl bg-red-100 border border-red-200 p-4 flex items-center gap-4">
@@ -771,6 +842,7 @@ export default function ServiceNow() {
               <div>
                 <p className="text-2xl font-bold text-red-700">{dueTodayCount}</p>
                 <p className="text-xs text-red-500">Due Today</p>
+                {dueTodayCompCount > 0 && <p className="text-xs text-red-400">{dueTodayEquipCount} equip · {dueTodayCompCount} comp</p>}
               </div>
             </div>
             <div className="rounded-xl bg-yellow-100 border border-yellow-200 p-4 flex items-center gap-4">
@@ -778,6 +850,7 @@ export default function ServiceNow() {
               <div>
                 <p className="text-2xl font-bold text-yellow-700">{dueWithin7Count}</p>
                 <p className="text-xs text-yellow-600">Due within 7 days</p>
+                {dueWithin7CompCount > 0 && <p className="text-xs text-yellow-500">{dueWithin7EquipCount} equip · {dueWithin7CompCount} comp</p>}
               </div>
             </div>
             <div className="rounded-xl bg-blue-100 border border-blue-200 p-4 flex items-center gap-4">
@@ -898,6 +971,112 @@ export default function ServiceNow() {
             )}
           </div>
 
+          {/* Components Due for Service */}
+          <div className="card space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="font-semibold text-gray-700">Components Due for Service</h2>
+              <div className="flex gap-2 flex-wrap">
+                <input
+                  type="text"
+                  className="input text-sm py-1.5 w-40"
+                  placeholder="Filter by name…"
+                  value={dueCompSearch}
+                  onChange={(e) => setDueCompSearch(e.target.value)}
+                />
+                <select
+                  className="input text-sm py-1.5 w-40"
+                  value={dueCompPlantId ?? ''}
+                  onChange={(e) => setDueCompPlantId(e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">All plants</option>
+                  {plants.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+                <select
+                  className="input text-sm py-1.5 w-36"
+                  value={dueCompStatusFilter}
+                  onChange={(e) => setDueCompStatusFilter(e.target.value)}
+                >
+                  <option value="">All statuses</option>
+                  <option value="Overdue">Overdue</option>
+                  <option value="Due Today">Due Today</option>
+                  <option value="Due Soon">Due Soon</option>
+                </select>
+              </div>
+            </div>
+
+            {dueCompLoading ? (
+              <div className="flex h-24 items-center justify-center"><LoadingSpinner /></div>
+            ) : (
+              <>
+                <div className="table-container">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Component</th>
+                        <th>Equipment</th>
+                        <th>Plant</th>
+                        <th>Last Service</th>
+                        <th>Next Due</th>
+                        <th>Status</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pagedDueComponents.map((comp) => (
+                        <tr key={comp.id}>
+                          <td className="font-medium">{comp.component_name}</td>
+                          <td className="text-gray-500">{comp.equipment_name ?? '—'}</td>
+                          <td className="text-gray-500">{comp.plant_name ?? '—'}</td>
+                          <td className="text-sm text-gray-600">{comp.last_service_date ?? '—'}</td>
+                          <td className="text-sm text-gray-600">{comp.next_service_date ?? '—'}</td>
+                          <td><ServiceStatusBadge status={comp.service_status} /></td>
+                          <td>
+                            {activeCardsByComponentId[comp.id] ? (
+                              <button
+                                onClick={() => openViewModalWithComplete(activeCardsByComponentId[comp.id])}
+                                className="w-32 justify-center btn-sm flex items-center gap-1.5 rounded px-2.5 py-1.5 text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition-colors"
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                                Mark Complete
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => openComponentCreateModal(comp)}
+                                className="w-32 justify-center btn-sm flex items-center gap-1.5 rounded px-2.5 py-1.5 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                                Service Now
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                      {filteredDueComponents.length === 0 && (
+                        <tr><td colSpan={7} className="text-center text-gray-400 py-8">No components due for service</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                {compTotalPages > 1 && (
+                  <div className="flex items-center justify-between mt-2">
+                    <p className="text-sm text-gray-500">
+                      Showing {dueCompPage * COMP_PAGE_SIZE + 1}–{Math.min((dueCompPage + 1) * COMP_PAGE_SIZE, filteredDueComponents.length)} of {filteredDueComponents.length}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button className="btn-secondary btn-sm" disabled={dueCompPage === 0} onClick={() => setDueCompPage((p) => p - 1)}>
+                        <ChevronLeft className="h-4 w-4" />Previous
+                      </button>
+                      <span className="text-sm text-gray-600">{dueCompPage + 1} / {compTotalPages}</span>
+                      <button className="btn-secondary btn-sm" disabled={dueCompPage >= compTotalPages - 1} onClick={() => setDueCompPage((p) => p + 1)}>
+                        Next<ChevronRight className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
           {/* Manual equipment picker */}
           <div className="card space-y-4">
             <h2 className="font-semibold text-gray-700">Create Job Card for Any Equipment</h2>
@@ -992,7 +1171,15 @@ export default function ServiceNow() {
           <div className="card space-y-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="font-semibold text-gray-700">Job Cards ({jobCardsTotal})</h2>
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex gap-2 flex-wrap items-center">
+                <div className="flex items-center gap-3 text-sm">
+                  {(['all', 'equipment', 'component'] as const).map((v) => (
+                    <label key={v} className="flex items-center gap-1.5 cursor-pointer">
+                      <input type="radio" name="jcType" value={v} checked={jobCardType === v} onChange={() => setJobCardType(v)} className="accent-blue-600" />
+                      <span className="capitalize text-gray-600">{v === 'all' ? 'All' : v === 'equipment' ? 'Equipment' : 'Component'}</span>
+                    </label>
+                  ))}
+                </div>
                 <input
                   type="text"
                   className="input text-sm py-1.5 w-48"
@@ -1018,6 +1205,7 @@ export default function ServiceNow() {
                   <tr>
                     <th>Job Card #</th>
                     <th>Equipment</th>
+                    <th>Type</th>
                     <th>Plant</th>
                     <th>Artisan</th>
                     <th>Priority</th>
@@ -1027,10 +1215,19 @@ export default function ServiceNow() {
                   </tr>
                 </thead>
                 <tbody>
-                  {jobCards.map((jc) => (
+                  {filteredJobCards.map((jc) => (
                     <tr key={jc.id} className="cursor-pointer" onClick={() => openViewModal(jc)}>
                       <td className="font-mono text-xs text-gray-600">{jc.job_card_number}</td>
-                      <td className="font-medium">{jc.equipment_name ?? '—'}</td>
+                      <td className="font-medium">
+                        {jc.component_id
+                          ? <><span>{jc.component_name ?? '—'}</span><span className="block text-xs text-gray-400">{jc.equipment_name}</span></>
+                          : jc.equipment_name ?? '—'}
+                      </td>
+                      <td>
+                        {jc.component_id
+                          ? <span className="badge bg-purple-100 text-purple-800">Component</span>
+                          : <span className="badge bg-blue-100 text-blue-800">Equipment</span>}
+                      </td>
                       <td className="text-gray-500">{jc.plant_name ?? '—'}</td>
                       <td className="text-sm text-gray-600">{jc.assigned_artisan ?? '—'}</td>
                       <td><PriorityBadge priority={jc.priority} /></td>
@@ -1050,8 +1247,8 @@ export default function ServiceNow() {
                       </td>
                     </tr>
                   ))}
-                  {jobCards.length === 0 && (
-                    <tr><td colSpan={8} className="text-center text-gray-400 py-8">No job cards found</td></tr>
+                  {filteredJobCards.length === 0 && (
+                    <tr><td colSpan={9} className="text-center text-gray-400 py-8">No job cards found</td></tr>
                   )}
                 </tbody>
               </table>
@@ -1122,14 +1319,22 @@ export default function ServiceNow() {
                 <input type="text" className="input" placeholder="Filter…" value={histArtisan} onChange={(e) => setHistArtisan(e.target.value)} />
               </div>
             </div>
-            <div className="mt-3 flex gap-2 flex-wrap">
+            <div className="mt-3 flex gap-2 flex-wrap items-center">
+              <div className="flex items-center gap-3 text-sm mr-2">
+                {(['all', 'equipment', 'component'] as const).map((v) => (
+                  <label key={v} className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="radio" name="histType" value={v} checked={histType === v} onChange={() => setHistType(v)} className="accent-blue-600" />
+                    <span className="capitalize text-gray-600">{v === 'all' ? 'All' : v === 'equipment' ? 'Equipment' : 'Component'}</span>
+                  </label>
+                ))}
+              </div>
               <button onClick={() => { setHistPage(0); loadHistory() }} className="btn-primary btn-sm flex items-center gap-1.5">
                 <Search className="h-3.5 w-3.5" />
                 Apply Filters
               </button>
               <button onClick={() => {
                 setHistSearch(''); setHistPlantId(null); setHistGroupId(null); setHistGroups([])
-                setHistDateFrom(''); setHistDateTo(''); setHistArtisan(''); setHistServiceType(''); setHistPage(0)
+                setHistDateFrom(''); setHistDateTo(''); setHistArtisan(''); setHistServiceType(''); setHistType('all'); setHistPage(0)
               }} className="btn-secondary btn-sm">Clear</button>
               <button onClick={handleExportHistory} disabled={histExporting} className="btn-secondary btn-sm flex items-center gap-1.5 ml-auto">
                 {histExporting ? <LoadingSpinner size="sm" /> : <Download className="h-3.5 w-3.5" />}
@@ -1148,6 +1353,7 @@ export default function ServiceNow() {
                     <tr>
                       <th>Date</th>
                       <th>Equipment</th>
+                      <th>Type</th>
                       <th>Plant</th>
                       <th>Service Type</th>
                       <th>Performed By</th>
@@ -1157,12 +1363,20 @@ export default function ServiceNow() {
                     </tr>
                   </thead>
                   <tbody>
-                    {histRecords.map((r) => (
+                    {histRecords
+                      .filter((r) => histType === 'all' || (histType === 'component' ? !!r.component_id : !r.component_id))
+                      .map((r) => (
                       <tr key={r.id} className="cursor-pointer hover:bg-blue-50/40 transition-colors" onClick={() => setSelectedHistory(r)}>
                         <td className="text-sm text-gray-600 whitespace-nowrap">{r.service_date}</td>
                         <td>
-                          <div className="font-medium">{r.equipment_name ?? '—'}</div>
-                          {r.equipment_code && <div className="text-xs font-mono text-gray-400">{r.equipment_code}</div>}
+                          {r.component_id
+                            ? <><div className="font-medium">{r.component_name ?? '—'}</div><div className="text-xs text-gray-400">{r.equipment_name}</div></>
+                            : <><div className="font-medium">{r.equipment_name ?? '—'}</div>{r.equipment_code && <div className="text-xs font-mono text-gray-400">{r.equipment_code}</div>}</>}
+                        </td>
+                        <td>
+                          {r.component_id
+                            ? <span className="badge bg-purple-100 text-purple-800">Component</span>
+                            : <span className="badge bg-blue-100 text-blue-800">Equipment</span>}
                         </td>
                         <td className="text-gray-500">{r.plant_name ?? '—'}</td>
                         <td className="text-sm text-gray-600">{r.service_type ?? '—'}</td>
@@ -1176,8 +1390,8 @@ export default function ServiceNow() {
                         </td>
                       </tr>
                     ))}
-                    {histRecords.length === 0 && (
-                      <tr><td colSpan={8} className="text-center text-gray-400 py-8">No service history records found</td></tr>
+                    {histRecords.filter((r) => histType === 'all' || (histType === 'component' ? !!r.component_id : !r.component_id)).length === 0 && (
+                      <tr><td colSpan={9} className="text-center text-gray-400 py-8">No service history records found</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -1219,8 +1433,11 @@ export default function ServiceNow() {
               <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600">{jcError}</div>
             )}
 
-            <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-2 text-sm text-blue-700">
-              <span className="font-medium">Equipment:</span> {jcFormEquipmentLabel}
+            <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-2 text-sm text-blue-700 space-y-0.5">
+              <div><span className="font-medium">Equipment:</span> {jcFormEquipmentLabel}</div>
+              {jcFormComponentLabel && (
+                <div><span className="font-medium">Component:</span> {jcFormComponentLabel}</div>
+              )}
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -1338,88 +1555,90 @@ export default function ServiceNow() {
             {/* Editable fields (when open/in-progress) */}
             {viewingCard.status !== 'completed' ? (
               <div className="space-y-4 border-t pt-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <label className="label">Service Type</label>
-                    <input type="text" className="input" value={viewingCard.service_type ?? ''} onChange={(e) => setViewingCard((c) => c ? { ...c, service_type: e.target.value } : c)} />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="label">Priority</label>
-                    <select className="input" value={viewingCard.priority} onChange={(e) => setViewingCard((c) => c ? { ...c, priority: e.target.value } : c)}>
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
-                      <option value="critical">Critical</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="label">Start Date</label>
-                    <input type="date" className="input" value={viewingCard.start_date ?? ''} onChange={(e) => setViewingCard((c) => c ? { ...c, start_date: e.target.value } : c)} />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="label">Due Date</label>
-                    <input type="date" className="input" value={viewingCard.due_date ?? ''} onChange={(e) => setViewingCard((c) => c ? { ...c, due_date: e.target.value } : c)} />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="label">Assigned Artisan</label>
-                    <input type="text" className="input" value={viewingCard.assigned_artisan ?? ''} onChange={(e) => setViewingCard((c) => c ? { ...c, assigned_artisan: e.target.value } : c)} />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="label">Assigned By</label>
-                    <input type="text" className="input" value={viewingCard.assigned_by ?? ''} onChange={(e) => setViewingCard((c) => c ? { ...c, assigned_by: e.target.value } : c)} />
-                  </div>
-                  <div className="sm:col-span-2 space-y-1">
-                    <label className="label">Status</label>
-                    <select className="input" value={viewingCard.status} onChange={(e) => setViewingCard((c) => c ? { ...c, status: e.target.value } : c)}>
-                      <option value="open">Open</option>
-                      <option value="in-progress">In Progress</option>
-                    </select>
-                  </div>
-                  <div className="sm:col-span-2 space-y-1">
-                    <label className="label">Work To Be Done</label>
-                    <ListInput
-                      items={parseListField(viewingCard.work_to_be_done)}
-                      onChange={(items) => setViewingCard((c) => c ? { ...c, work_to_be_done: serializeListField(items) } : c)}
-                      placeholder="Add task…"
-                    />
-                  </div>
-                  <div className="sm:col-span-2 space-y-1">
-                    <label className="label">Parts Required</label>
-                    <ListInput
-                      items={parseListField(viewingCard.parts_required)}
-                      onChange={(items) => setViewingCard((c) => c ? { ...c, parts_required: serializeListField(items) } : c)}
-                      placeholder="Add part…"
-                    />
-                  </div>
-                  <div className="sm:col-span-2 space-y-1">
-                    <label className="label">Notes</label>
-                    <textarea className="input resize-none" rows={2} value={viewingCard.notes ?? ''} onChange={(e) => setViewingCard((c) => c ? { ...c, notes: e.target.value } : c)} />
-                  </div>
-                </div>
-                <div className="flex gap-2 flex-wrap">
-                  <button onClick={handleUpdateJobCard} disabled={jcSaving} className="btn-secondary btn-sm flex items-center gap-1.5">
-                    {jcSaving ? <LoadingSpinner size="sm" /> : <Check className="h-4 w-4" />}
-                    Save Changes
-                  </button>
-                  {!showCompleteForm && (
-                    <button
-                      onClick={() => {
-                        setShowCompleteForm(true)
-                        if (viewingCard) {
-                          setCompleteForm({
-                            ...EMPTY_COMPLETE_FORM,
-                            work_done: parseListField(viewingCard.work_to_be_done),
-                            parts_used: parseListField(viewingCard.parts_required),
-                          })
-                        }
-                      }}
-                      className="btn-primary btn-sm flex items-center gap-1.5"
-                    >
-                      <Check className="h-4 w-4" />
-                      Mark as Completed
-                    </button>
-                  )}
-                </div>
+                {!showCompleteForm && (
+                  <>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <label className="label">Service Type</label>
+                        <input type="text" className="input" value={viewingCard.service_type ?? ''} onChange={(e) => setViewingCard((c) => c ? { ...c, service_type: e.target.value } : c)} />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="label">Priority</label>
+                        <select className="input" value={viewingCard.priority} onChange={(e) => setViewingCard((c) => c ? { ...c, priority: e.target.value } : c)}>
+                          <option value="low">Low</option>
+                          <option value="medium">Medium</option>
+                          <option value="high">High</option>
+                          <option value="critical">Critical</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="label">Start Date</label>
+                        <input type="date" className="input" value={viewingCard.start_date ?? ''} onChange={(e) => setViewingCard((c) => c ? { ...c, start_date: e.target.value } : c)} />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="label">Due Date</label>
+                        <input type="date" className="input" value={viewingCard.due_date ?? ''} onChange={(e) => setViewingCard((c) => c ? { ...c, due_date: e.target.value } : c)} />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="label">Assigned Artisan</label>
+                        <input type="text" className="input" value={viewingCard.assigned_artisan ?? ''} onChange={(e) => setViewingCard((c) => c ? { ...c, assigned_artisan: e.target.value } : c)} />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="label">Assigned By</label>
+                        <input type="text" className="input" value={viewingCard.assigned_by ?? ''} onChange={(e) => setViewingCard((c) => c ? { ...c, assigned_by: e.target.value } : c)} />
+                      </div>
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className="label">Status</label>
+                        <select className="input" value={viewingCard.status} onChange={(e) => setViewingCard((c) => c ? { ...c, status: e.target.value } : c)}>
+                          <option value="open">Open</option>
+                          <option value="in-progress">In Progress</option>
+                        </select>
+                      </div>
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className="label">Work To Be Done</label>
+                        <ListInput
+                          items={parseListField(viewingCard.work_to_be_done)}
+                          onChange={(items) => setViewingCard((c) => c ? { ...c, work_to_be_done: serializeListField(items) } : c)}
+                          placeholder="Add task…"
+                        />
+                      </div>
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className="label">Parts Required</label>
+                        <ListInput
+                          items={parseListField(viewingCard.parts_required)}
+                          onChange={(items) => setViewingCard((c) => c ? { ...c, parts_required: serializeListField(items) } : c)}
+                          placeholder="Add part…"
+                        />
+                      </div>
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className="label">Notes</label>
+                        <textarea className="input resize-none" rows={2} value={viewingCard.notes ?? ''} onChange={(e) => setViewingCard((c) => c ? { ...c, notes: e.target.value } : c)} />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      <button onClick={handleUpdateJobCard} disabled={jcSaving} className="btn-secondary btn-sm flex items-center gap-1.5">
+                        {jcSaving ? <LoadingSpinner size="sm" /> : <Check className="h-4 w-4" />}
+                        Save Changes
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowCompleteForm(true)
+                          if (viewingCard) {
+                            setCompleteForm({
+                              ...EMPTY_COMPLETE_FORM,
+                              work_done: parseListField(viewingCard.work_to_be_done),
+                              parts_used: parseListField(viewingCard.parts_required),
+                            })
+                          }
+                        }}
+                        className="btn-primary btn-sm flex items-center gap-1.5"
+                      >
+                        <Check className="h-4 w-4" />
+                        Mark as Completed
+                      </button>
+                    </div>
+                  </>
+                )}
 
                 {/* Complete form */}
                 {showCompleteForm && (

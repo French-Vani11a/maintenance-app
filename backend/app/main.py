@@ -11,6 +11,7 @@ from app.routers import (
     auth,
     plants,
     equipment,
+    equipment_components,
     users,
     maintenance_records,
     import_excel,
@@ -85,6 +86,18 @@ def ensure_schema_updates():
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE service_job_cards ADD COLUMN start_date DATE"))
 
+    if "equipment_components" in tables:
+        ec_columns = {c["name"] for c in inspector.get_columns("equipment_components")}
+        if "updated_at" not in ec_columns:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE equipment_components ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL"))
+
+    if "service_job_cards" in tables:
+        jc_extra_columns = {c["name"] for c in inspector.get_columns("service_job_cards")}
+        if "component_id" not in jc_extra_columns:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE service_job_cards ADD COLUMN component_id INTEGER REFERENCES equipment_components(id)"))
+
     if "maintenance_records" not in tables:
         return
 
@@ -127,6 +140,7 @@ def seed_default_admin():
 def recalculate_service_statuses():
     from datetime import date, timedelta
     from app.models.equipment import Equipment as EquipmentModel
+    from app.models.equipment_component import EquipmentComponent as ComponentModel
     db = SessionLocal()
     try:
         today = date.today()
@@ -143,6 +157,19 @@ def recalculate_service_statuses():
                 new_status = "On Schedule"
             if eq.service_status != new_status:
                 eq.service_status = new_status
+        for comp in db.query(ComponentModel).all():
+            if not comp.last_service_date or not comp.service_interval_days or not comp.next_service_date:
+                new_status = "Not Scheduled"
+            elif comp.next_service_date < today:
+                new_status = "Overdue"
+            elif comp.next_service_date == today:
+                new_status = "Due Today"
+            elif comp.next_service_date <= today + timedelta(days=14):
+                new_status = "Due Soon"
+            else:
+                new_status = "On Schedule"
+            if comp.service_status != new_status:
+                comp.service_status = new_status
         db.commit()
     except Exception:
         db.rollback()
@@ -179,6 +206,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
 app.include_router(plants.router, prefix="/api/plants", tags=["Plants"])
 app.include_router(equipment.router, prefix="/api/equipment", tags=["Equipment"])
+app.include_router(equipment_components.router, prefix="/api/equipment-components", tags=["Equipment Components"])
 app.include_router(users.router, prefix="/api/users", tags=["Users"])
 app.include_router(maintenance_records.router, prefix="/api/records", tags=["Maintenance Records"])
 app.include_router(import_excel.router, prefix="/api/import", tags=["Import"])

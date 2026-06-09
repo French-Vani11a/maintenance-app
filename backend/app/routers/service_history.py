@@ -36,6 +36,8 @@ def _enrich_history(r: ServiceHistory) -> dict:
         "parts_used": r.parts_used,
         "job_card_id": r.job_card_id,
         "job_card_number": r.job_card.job_card_number if r.job_card else None,
+        "component_id": r.job_card.component_id if r.job_card else None,
+        "component_name": r.job_card.component.component_name if r.job_card and r.job_card.component else None,
         "created_at": r.created_at,
     }
 

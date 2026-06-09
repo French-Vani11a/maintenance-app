@@ -87,6 +87,11 @@ export interface ServiceDashboardStats {
   upcoming_count: number
   not_scheduled_count: number
   completed_this_month: number
+  overdue_component_count: number
+  due_today_component_count: number
+  due_soon_component_count: number
+  upcoming_component_count: number
+  not_scheduled_component_count: number
   status_breakdown: Array<{ status: string; count: number }>
   overdue_by_plant: Array<{ id: number; name: string; overdue_count: number }>
   due_today_services: Array<{
@@ -95,6 +100,7 @@ export interface ServiceDashboardStats {
     plant_name: string | null
     next_service_date: string | null
     status: string
+    item_type: 'equipment'
   }>
   upcoming_services: Array<{
     id: number
@@ -102,6 +108,7 @@ export interface ServiceDashboardStats {
     plant_name: string | null
     next_service_date: string | null
     status: string
+    item_type: 'equipment'
   }>
   overdue_services: Array<{
     id: number
@@ -109,7 +116,59 @@ export interface ServiceDashboardStats {
     plant_name: string | null
     next_service_date: string | null
     status: string
+    item_type: 'equipment'
   }>
+  overdue_component_services: Array<{
+    id: number
+    component_name: string
+    equipment_name: string
+    plant_name: string | null
+    next_service_date: string | null
+    status: string
+    item_type: 'component'
+  }>
+  due_today_component_services: Array<{
+    id: number
+    component_name: string
+    equipment_name: string
+    plant_name: string | null
+    next_service_date: string | null
+    status: string
+    item_type: 'component'
+  }>
+  upcoming_component_services: Array<{
+    id: number
+    component_name: string
+    equipment_name: string
+    plant_name: string | null
+    next_service_date: string | null
+    status: string
+    item_type: 'component'
+  }>
+}
+
+export interface EquipmentComponent {
+  id: number
+  equipment_id: number
+  equipment_name: string | null
+  plant_id: number | null
+  plant_name: string | null
+  component_name: string
+  manufacturer: string | null
+  model_number: string | null
+  description: string | null
+  last_service_date: string | null
+  service_interval_days: number | null
+  next_service_date: string | null
+  service_status: string
+  notes: string | null
+  status: string
+  created_at: string | null
+}
+
+export interface EquipmentComponentsResponse {
+  total: number
+  components: EquipmentComponent[]
 }
 
 export interface FaultCategory {
@@ -209,6 +268,8 @@ export interface ServiceJobCard {
   equipment_id: number
   equipment_name: string | null
   equipment_code: string | null
+  component_id: number | null
+  component_name: string | null
   plant_id: number | null
   plant_name: string | null
   service_type: string | null
@@ -245,6 +306,8 @@ export interface EnrichedServiceHistory {
   parts_used: string | null
   job_card_id: number | null
   job_card_number: string | null
+  component_id: number | null
+  component_name: string | null
   created_at: string | null
 }
 

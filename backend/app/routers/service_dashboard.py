@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.equipment import Equipment
+from app.models.equipment_component import EquipmentComponent
 from app.models.plant import Plant
 from app.models.service_history import ServiceHistory
 from app.models.user import User
@@ -67,11 +68,23 @@ def get_service_dashboard_stats(
         or 0
     )
 
-    status_breakdown = (
+    equipment_status_breakdown = (
         db.query(Equipment.service_status, func.count(Equipment.id).label("count"))
         .group_by(Equipment.service_status)
         .all()
     )
+    component_status_breakdown = (
+        db.query(EquipmentComponent.service_status, func.count(EquipmentComponent.id).label("count"))
+        .group_by(EquipmentComponent.service_status)
+        .all()
+    )
+    status_map: dict[str, int] = {}
+    for s in equipment_status_breakdown:
+        key = s.service_status or "Not Scheduled"
+        status_map[key] = status_map.get(key, 0) + s.count
+    for s in component_status_breakdown:
+        key = s.service_status or "Not Scheduled"
+        status_map[key] = status_map.get(key, 0) + s.count
 
     overdue_by_plant = (
         db.query(
@@ -132,6 +145,94 @@ def get_service_dashboard_stats(
         .all()
     )
 
+    upcoming_component_count = (
+        db.query(EquipmentComponent)
+        .filter(EquipmentComponent.next_service_date != None, EquipmentComponent.next_service_date > soon_cutoff)
+        .count()
+    )
+    not_scheduled_component_count = (
+        db.query(EquipmentComponent)
+        .filter(
+            (EquipmentComponent.last_service_date == None)
+            | (EquipmentComponent.service_interval_days == None)
+            | (EquipmentComponent.next_service_date == None)
+        )
+        .count()
+    )
+
+    # ── Component stats ──────────────────────────────────────────────────────
+    overdue_component_count = (
+        db.query(EquipmentComponent)
+        .filter(EquipmentComponent.next_service_date != None, EquipmentComponent.next_service_date < today)
+        .count()
+    )
+    due_today_component_count = (
+        db.query(EquipmentComponent)
+        .filter(EquipmentComponent.next_service_date == today)
+        .count()
+    )
+    due_soon_component_count = (
+        db.query(EquipmentComponent)
+        .filter(
+            EquipmentComponent.next_service_date != None,
+            EquipmentComponent.next_service_date >= today,
+            EquipmentComponent.next_service_date <= soon_cutoff,
+        )
+        .count()
+    )
+
+    overdue_component_services = (
+        db.query(
+            EquipmentComponent.id,
+            EquipmentComponent.component_name,
+            Equipment.equipment_name,
+            Plant.name.label("plant_name"),
+            EquipmentComponent.next_service_date,
+        )
+        .join(Equipment, EquipmentComponent.equipment_id == Equipment.id)
+        .outerjoin(Plant, Equipment.plant_id == Plant.id)
+        .filter(EquipmentComponent.next_service_date != None, EquipmentComponent.next_service_date < today)
+        .order_by(EquipmentComponent.next_service_date.asc())
+        .limit(20)
+        .all()
+    )
+
+    due_today_component_services = (
+        db.query(
+            EquipmentComponent.id,
+            EquipmentComponent.component_name,
+            Equipment.equipment_name,
+            Plant.name.label("plant_name"),
+            EquipmentComponent.next_service_date,
+        )
+        .join(Equipment, EquipmentComponent.equipment_id == Equipment.id)
+        .outerjoin(Plant, Equipment.plant_id == Plant.id)
+        .filter(EquipmentComponent.next_service_date == today)
+        .order_by(EquipmentComponent.component_name.asc())
+        .limit(20)
+        .all()
+    )
+
+    upcoming_component_services = (
+        db.query(
+            EquipmentComponent.id,
+            EquipmentComponent.component_name,
+            Equipment.equipment_name,
+            Plant.name.label("plant_name"),
+            EquipmentComponent.next_service_date,
+        )
+        .join(Equipment, EquipmentComponent.equipment_id == Equipment.id)
+        .outerjoin(Plant, Equipment.plant_id == Plant.id)
+        .filter(
+            EquipmentComponent.next_service_date != None,
+            EquipmentComponent.next_service_date >= today,
+            EquipmentComponent.next_service_date <= soon_cutoff,
+        )
+        .order_by(EquipmentComponent.next_service_date.asc())
+        .limit(20)
+        .all()
+    )
+
     return {
         "overdue_count": overdue_count,
         "due_today_count": due_today_count,
@@ -139,9 +240,14 @@ def get_service_dashboard_stats(
         "upcoming_count": upcoming_count,
         "not_scheduled_count": not_scheduled_count,
         "completed_this_month": completed_this_month,
+        "overdue_component_count": overdue_component_count,
+        "due_today_component_count": due_today_component_count,
+        "due_soon_component_count": due_soon_component_count,
+        "upcoming_component_count": upcoming_component_count,
+        "not_scheduled_component_count": not_scheduled_component_count,
         "status_breakdown": [
-            {"status": s.service_status or "Not Scheduled", "count": s.count}
-            for s in status_breakdown
+            {"status": status, "count": count}
+            for status, count in sorted(status_map.items())
         ],
         "overdue_by_plant": [
             {"id": p.id, "name": p.name, "overdue_count": p.overdue_count}
@@ -154,6 +260,7 @@ def get_service_dashboard_stats(
                 "plant_name": e.plant_name,
                 "next_service_date": e.next_service_date,
                 "status": "Due Today",
+                "item_type": "equipment",
             }
             for e in due_today_services
         ],
@@ -164,6 +271,7 @@ def get_service_dashboard_stats(
                 "plant_name": e.plant_name,
                 "next_service_date": e.next_service_date,
                 "status": "Due Soon",
+                "item_type": "equipment",
             }
             for e in upcoming_services
         ],
@@ -174,7 +282,44 @@ def get_service_dashboard_stats(
                 "plant_name": e.plant_name,
                 "next_service_date": e.next_service_date,
                 "status": "Overdue",
+                "item_type": "equipment",
             }
             for e in overdue_services
+        ],
+        "overdue_component_services": [
+            {
+                "id": c.id,
+                "component_name": c.component_name,
+                "equipment_name": c.equipment_name,
+                "plant_name": c.plant_name,
+                "next_service_date": c.next_service_date,
+                "status": "Overdue",
+                "item_type": "component",
+            }
+            for c in overdue_component_services
+        ],
+        "due_today_component_services": [
+            {
+                "id": c.id,
+                "component_name": c.component_name,
+                "equipment_name": c.equipment_name,
+                "plant_name": c.plant_name,
+                "next_service_date": c.next_service_date,
+                "status": "Due Today",
+                "item_type": "component",
+            }
+            for c in due_today_component_services
+        ],
+        "upcoming_component_services": [
+            {
+                "id": c.id,
+                "component_name": c.component_name,
+                "equipment_name": c.equipment_name,
+                "plant_name": c.plant_name,
+                "next_service_date": c.next_service_date,
+                "status": "Due Soon",
+                "item_type": "component",
+            }
+            for c in upcoming_component_services
         ],
     }
