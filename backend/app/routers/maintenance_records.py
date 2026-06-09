@@ -63,6 +63,7 @@ def _enrich(record: MaintenanceRecord) -> dict:
         "arrival_time": record.arrival_time,
         "finishing_time": record.finishing_time,
         "downtime_minutes": record.downtime_minutes,
+        "run_time_minutes": record.run_time_minutes,
         "remarks": record.remarks,
         "status": record.status,
         "record_type": record.record_type,
@@ -198,7 +199,7 @@ def export_csv(
     writer.writerow([
         "ID", "Date", "Time Reported", "Reporter", "Reported To", "Artisan",
         "MR No", "Plant", "Equipment", "Equipment Group", "Issue Description",
-        "Arrival Time", "Finishing Time", "Downtime (mins)", "Status", "Type", "Remarks",
+        "Arrival Time", "Finishing Time", "Downtime (mins)", "Run Time (mins)", "Status", "Type", "Remarks",
     ])
     for r in records:
         writer.writerow([
@@ -216,6 +217,7 @@ def export_csv(
             r.arrival_time or "",
             r.finishing_time or "",
             r.downtime_minutes or 0,
+            r.run_time_minutes if r.run_time_minutes is not None else "",
             r.status,
             r.record_type or "regular",
             r.remarks or "",

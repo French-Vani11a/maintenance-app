@@ -22,6 +22,7 @@ class MaintenanceRecord(Base):
     arrival_time = Column(String(20), nullable=True)
     finishing_time = Column(String(20), nullable=True)
     downtime_minutes = Column(Integer, nullable=True, default=0)
+    run_time_minutes = Column(Integer, nullable=True)
     remarks = Column(Text, nullable=True)
     status = Column(String(30), default="open", nullable=False, index=True)
     record_type = Column(String(20), default="regular", nullable=False, index=True)

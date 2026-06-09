@@ -35,6 +35,7 @@ interface FormState {
   arrival_time: string
   finishing_time: string
   downtime_minutes: string
+  run_time_minutes: string
   remarks: string
   status: string
   record_type: string
@@ -54,6 +55,7 @@ const empty: FormState = {
   arrival_time: '',
   finishing_time: '',
   downtime_minutes: '0',
+  run_time_minutes: '',
   remarks: '',
   status: 'open',
   record_type: 'regular',
@@ -116,6 +118,7 @@ export default function RecordForm() {
           arrival_time: r.arrival_time || '',
           finishing_time: r.finishing_time || '',
           downtime_minutes: String(r.downtime_minutes ?? 0),
+          run_time_minutes: r.run_time_minutes != null ? String(r.run_time_minutes) : '',
           remarks: r.remarks || '',
           status: r.status || 'open',
           record_type: r.record_type || 'regular',
@@ -174,6 +177,7 @@ export default function RecordForm() {
         arrival_time: form.arrival_time || null,
         finishing_time: form.finishing_time || null,
         downtime_minutes: Number(form.downtime_minutes) || 0,
+        run_time_minutes: form.run_time_minutes ? Number(form.run_time_minutes) : null,
         remarks: form.remarks || null,
         status: form.status,
         record_type: form.record_type,
@@ -231,7 +235,7 @@ export default function RecordForm() {
             <input type="text" className="input" placeholder="e.g. MR-0123" value={form.mr_no} onChange={(e) => set('mr_no', e.target.value)} />
           </FieldWrapper>
         </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
           <FieldWrapper label="Status">
             <select className="input" value={form.status} onChange={(e) => set('status', e.target.value)}>
               {STATUS_OPTIONS.map((s) => (
@@ -333,6 +337,15 @@ export default function RecordForm() {
               className="input"
               value={form.downtime_minutes}
               onChange={(e) => set('downtime_minutes', e.target.value)}
+            />
+          </FieldWrapper>
+          <FieldWrapper label="Run Time (minutes)">
+            <input
+              type="number"
+              min="0"
+              className="input"
+              value={form.run_time_minutes}
+              onChange={(e) => set('run_time_minutes', e.target.value)}
             />
           </FieldWrapper>
         </div>

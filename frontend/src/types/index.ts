@@ -120,6 +120,7 @@ export interface ServiceDashboardStats {
   }>
   overdue_component_services: Array<{
     id: number
+    equipment_id: number
     component_name: string
     equipment_name: string
     plant_name: string | null
@@ -129,6 +130,7 @@ export interface ServiceDashboardStats {
   }>
   due_today_component_services: Array<{
     id: number
+    equipment_id: number
     component_name: string
     equipment_name: string
     plant_name: string | null
@@ -138,6 +140,7 @@ export interface ServiceDashboardStats {
   }>
   upcoming_component_services: Array<{
     id: number
+    equipment_id: number
     component_name: string
     equipment_name: string
     plant_name: string | null
@@ -194,6 +197,7 @@ export interface MaintenanceRecord {
   arrival_time: string | null
   finishing_time: string | null
   downtime_minutes: number
+  run_time_minutes: number | null
   remarks: string | null
   status: string
   record_type: string

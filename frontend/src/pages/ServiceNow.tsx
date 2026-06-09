@@ -972,9 +972,9 @@ export default function ServiceNow() {
           </div>
 
           {/* Components Due for Service */}
-          <div className="card space-y-4">
+          <div className="card space-y-4 bg-red-100 border-red-200">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="font-semibold text-gray-700">Components Due for Service</h2>
+              <h2 className="font-semibold text-red-700">Components Due for Service</h2>
               <div className="flex gap-2 flex-wrap">
                 <input
                   type="text"
@@ -1008,7 +1008,7 @@ export default function ServiceNow() {
               <div className="flex h-24 items-center justify-center"><LoadingSpinner /></div>
             ) : (
               <>
-                <div className="table-container">
+                <div className="table-container bg-white">
                   <table className="table">
                     <thead>
                       <tr>
@@ -1059,14 +1059,14 @@ export default function ServiceNow() {
                 </div>
                 {compTotalPages > 1 && (
                   <div className="flex items-center justify-between mt-2">
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-red-500">
                       Showing {dueCompPage * COMP_PAGE_SIZE + 1}–{Math.min((dueCompPage + 1) * COMP_PAGE_SIZE, filteredDueComponents.length)} of {filteredDueComponents.length}
                     </p>
                     <div className="flex items-center gap-2">
                       <button className="btn-secondary btn-sm" disabled={dueCompPage === 0} onClick={() => setDueCompPage((p) => p - 1)}>
                         <ChevronLeft className="h-4 w-4" />Previous
                       </button>
-                      <span className="text-sm text-gray-600">{dueCompPage + 1} / {compTotalPages}</span>
+                      <span className="text-sm text-red-600">{dueCompPage + 1} / {compTotalPages}</span>
                       <button className="btn-secondary btn-sm" disabled={dueCompPage >= compTotalPages - 1} onClick={() => setDueCompPage((p) => p + 1)}>
                         Next<ChevronRight className="h-4 w-4" />
                       </button>
@@ -1278,7 +1278,7 @@ export default function ServiceNow() {
         <div className="space-y-4">
           {/* Filters */}
           <div className="card">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
               <div className="space-y-1">
                 <label className="label">Equipment</label>
                 <input type="text" className="input" placeholder="Search by name…" value={histSearch} onChange={(e) => setHistSearch(e.target.value)} />
@@ -1318,28 +1318,33 @@ export default function ServiceNow() {
                 <label className="label">Artisan</label>
                 <input type="text" className="input" placeholder="Filter…" value={histArtisan} onChange={(e) => setHistArtisan(e.target.value)} />
               </div>
-            </div>
-            <div className="mt-3 flex gap-2 flex-wrap items-center">
-              <div className="flex items-center gap-3 text-sm mr-2">
-                {(['all', 'equipment', 'component'] as const).map((v) => (
-                  <label key={v} className="flex items-center gap-1.5 cursor-pointer">
-                    <input type="radio" name="histType" value={v} checked={histType === v} onChange={() => setHistType(v)} className="accent-blue-600" />
-                    <span className="capitalize text-gray-600">{v === 'all' ? 'All' : v === 'equipment' ? 'Equipment' : 'Component'}</span>
-                  </label>
-                ))}
+              <div className="space-y-1">
+                <label className="label">Type</label>
+                <div className="flex h-10 items-center gap-3 text-sm">
+                  {(['all', 'equipment', 'component'] as const).map((v) => (
+                    <label key={v} className="flex items-center gap-1.5 cursor-pointer">
+                      <input type="radio" name="histType" value={v} checked={histType === v} onChange={() => setHistType(v)} className="accent-blue-600" />
+                      <span className="capitalize text-gray-600">{v === 'all' ? 'All' : v === 'equipment' ? 'Equipment' : 'Component'}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
-              <button onClick={() => { setHistPage(0); loadHistory() }} className="btn-primary btn-sm flex items-center gap-1.5">
-                <Search className="h-3.5 w-3.5" />
-                Apply Filters
-              </button>
-              <button onClick={() => {
-                setHistSearch(''); setHistPlantId(null); setHistGroupId(null); setHistGroups([])
-                setHistDateFrom(''); setHistDateTo(''); setHistArtisan(''); setHistServiceType(''); setHistType('all'); setHistPage(0)
-              }} className="btn-secondary btn-sm">Clear</button>
-              <button onClick={handleExportHistory} disabled={histExporting} className="btn-secondary btn-sm flex items-center gap-1.5 ml-auto">
-                {histExporting ? <LoadingSpinner size="sm" /> : <Download className="h-3.5 w-3.5" />}
-                Export CSV
-              </button>
+              <div className="flex items-end gap-2">
+                <button onClick={() => { setHistPage(0); loadHistory() }} className="btn-primary btn-sm inline-flex items-center justify-center gap-1.5 px-3">
+                  <Search className="h-3.5 w-3.5" />
+                  Apply Filters
+                </button>
+                <button onClick={() => {
+                  setHistSearch(''); setHistPlantId(null); setHistGroupId(null); setHistGroups([])
+                  setHistDateFrom(''); setHistDateTo(''); setHistArtisan(''); setHistServiceType(''); setHistType('all'); setHistPage(0)
+                }} className="btn-secondary btn-sm px-3">Clear</button>
+              </div>
+              <div className="flex items-end 2xl:col-start-6 2xl:justify-self-end">
+                <button onClick={handleExportHistory} disabled={histExporting} className="btn-primary btn-sm inline-flex items-center justify-center gap-1.5 px-3">
+                  {histExporting ? <LoadingSpinner size="sm" /> : <Download className="h-3.5 w-3.5" />}
+                  Export CSV
+                </button>
+              </div>
             </div>
           </div>
 

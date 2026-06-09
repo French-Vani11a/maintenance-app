@@ -111,6 +111,9 @@ def ensure_schema_updates():
     if "record_type" not in columns:
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE maintenance_records ADD COLUMN record_type VARCHAR(20) NOT NULL DEFAULT 'regular'"))
+    if "run_time_minutes" not in columns:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE maintenance_records ADD COLUMN run_time_minutes INTEGER"))
 
 
 def seed_default_admin():

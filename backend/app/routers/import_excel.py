@@ -45,6 +45,7 @@ def download_template(current_user: User = Depends(get_current_user)):
         ("Arrival Time",      "Optional. Format: HH:MM (24-hour).  e.g. 09:15",                        14),
         ("Finishing Time",    "Optional. Format: HH:MM (24-hour).  e.g. 11:45",                        14),
         ("Downtime",          "Optional. Duration in minutes, hours (e.g. 90) or HH:MM (e.g. 1:30).",  14),
+        ("Run Time",          "Optional. Duration in minutes, hours (e.g. 90) or HH:MM (e.g. 1:30).",  14),
         ("Remarks",           "Optional. Additional notes or observations.",                             30),
         ("Record Type",       "Optional. Enter  regular  or  breakdown  (default: regular).",           16),
     ]
@@ -78,13 +79,13 @@ def download_template(current_user: User = Depends(get_current_user)):
     examples = [
         ["2026-06-15", "07:45", "MR-0001", "Main Bakery", "Mechanical", "Conveyor Drive Unit",
          "Conveyor belt slipping on startup, causing product spillage.", "J. Dlamini",
-         "S. Mokoena", "Plant Manager", "08:00", "10:30", "150", "Replaced worn tensioner pulley.", "breakdown"],
+         "S. Mokoena", "Plant Manager", "08:00", "10:30", "150", "120", "Replaced worn tensioner pulley.", "breakdown"],
         ["2026-06-16", "09:00", "MR-0002", "Packaging Line", "Electrical", "Labelling Machine",
          "Label sensor misaligned — triggering false rejects.", "T. Nkosi",
-         "A. Sithole", "Shift Supervisor", "09:15", "10:00", "45", "Realigned sensor bracket.", "regular"],
+         "A. Sithole", "Shift Supervisor", "09:15", "10:00", "45", "30", "Realigned sensor bracket.", "regular"],
         ["2026-06-17", "",      "MR-0003", "Dispatch",       "",            "Pallet Wrapper",
          "Motor not starting. Thermal overload tripped.", "J. Dlamini",
-         "B. Khumalo", "", "14:00", "15:30", "90", "", "breakdown"],
+         "B. Khumalo", "", "14:00", "15:30", "90", "", "", "breakdown"],
     ]
 
     for row_idx, row_data in enumerate(examples, start=3):
@@ -123,6 +124,7 @@ def download_template(current_user: User = Depends(get_current_user)):
         ("  • Arrival Time    — HH:MM 24-hour format", False, 10),
         ("  • Finishing Time  — HH:MM 24-hour format (downtime auto-calculated)", False, 10),
         ("  • Downtime        — Minutes, hours, or HH:MM (e.g. 90, 1.5, or 1:30)", False, 10),
+        ("  • Run Time        — Optional minutes, hours, or HH:MM (e.g. 90, 1.5, or 1:30)", False, 10),
         ("  • Remarks         — Additional notes", False, 10),
         ("  • Record Type     — 'regular' or 'breakdown' (default: regular)", False, 10),
         ("", False, 10),

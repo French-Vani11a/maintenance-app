@@ -42,13 +42,13 @@ interface ModalForm {
   record_date: string; time_reported: string; reporter_name: string; reported_to: string
   artisan_name: string; mr_no: string; plant_id: string; equipment_group_id: string
   equipment_id: string; issue_description: string; arrival_time: string; finishing_time: string
-  downtime_minutes: string; remarks: string; status: string; record_type: string
+  downtime_minutes: string; run_time_minutes: string; remarks: string; status: string; record_type: string
 }
 
 const EMPTY_MODAL_FORM: ModalForm = {
   record_date: '', time_reported: '', reporter_name: '', reported_to: '', artisan_name: '',
   mr_no: '', plant_id: '', equipment_group_id: '', equipment_id: '', issue_description: '',
-  arrival_time: '', finishing_time: '', downtime_minutes: '0', remarks: '', status: 'open', record_type: 'regular',
+  arrival_time: '', finishing_time: '', downtime_minutes: '0', run_time_minutes: '', remarks: '', status: 'open', record_type: 'regular',
 }
 
 export default function MaintenanceRecords() {
@@ -139,6 +139,7 @@ export default function MaintenanceRecords() {
       arrival_time: record.arrival_time || '',
       finishing_time: record.finishing_time || '',
       downtime_minutes: String(record.downtime_minutes ?? 0),
+      run_time_minutes: record.run_time_minutes != null ? String(record.run_time_minutes) : '',
       remarks: record.remarks || '',
       status: record.status || 'open',
       record_type: record.record_type || 'regular',
@@ -170,6 +171,7 @@ export default function MaintenanceRecords() {
         arrival_time: modalForm.arrival_time || null,
         finishing_time: modalForm.finishing_time || null,
         downtime_minutes: Number(modalForm.downtime_minutes) || 0,
+        run_time_minutes: modalForm.run_time_minutes ? Number(modalForm.run_time_minutes) : null,
         remarks: modalForm.remarks || null,
         status: modalForm.status,
         record_type: modalForm.record_type,
@@ -246,8 +248,6 @@ export default function MaintenanceRecords() {
           onChange={(e) => handleFilterChange('mr_no', e.target.value)} />
         <input type="text" className="input w-40" placeholder="Filter Artisan" value={filters.artisan_name || ''}
           onChange={(e) => handleFilterChange('artisan_name', e.target.value)} />
-        <input type="text" className="input w-44" placeholder="Filter created_by" value={filters.created_by || ''}
-          onChange={(e) => handleFilterChange('created_by', e.target.value)} />
         <div className="ml-auto flex items-center gap-2">
           <span className="text-sm text-gray-500">{total} records</span>
           <Link to="/records/new" className="btn-primary">
@@ -273,8 +273,8 @@ export default function MaintenanceRecords() {
                 <th>Equipment</th>
                 <th>Issue</th>
                 <th>Artisan</th>
-                <th>created_by</th>
                 <th>Downtime</th>
+                <th>Run Time</th>
                 <th>Type</th>
                 <th>Status</th>
               </tr>
@@ -289,8 +289,8 @@ export default function MaintenanceRecords() {
                   <td className="max-w-[160px] truncate" title={r.equipment_name || undefined}>{r.equipment_name || '—'}</td>
                   <td className="max-w-[200px] truncate" title={r.issue_description || undefined}>{r.issue_description || '—'}</td>
                   <td>{r.artisan_name || '—'}</td>
-                  <td>{r.created_by_user_name || '—'}</td>
                   <td className="text-orange-600 font-medium">{fmtMins(r.downtime_minutes)}</td>
+                  <td className="text-blue-600 font-medium">{fmtMins(r.run_time_minutes)}</td>
                   <td>
                     <span className={`badge ${r.record_type === 'breakdown' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-600'}`}>
                       {r.record_type === 'breakdown' ? 'Breakdown' : 'Regular'}
@@ -387,6 +387,8 @@ export default function MaintenanceRecords() {
                   <InfoField label="Arrival Time" value={selectedRecord.arrival_time} />
                   <InfoField label="Finishing Time" value={selectedRecord.finishing_time} />
                   <InfoField label="Downtime" value={fmtMins(selectedRecord.downtime_minutes)} />
+                  <InfoField label="Run Time" value={fmtMins(selectedRecord.run_time_minutes)} />
+                  <InfoField label="Created By" value={selectedRecord.created_by_user_name} />
                 </div>
 
                 {selectedRecord.issue_description && (
@@ -489,6 +491,11 @@ export default function MaintenanceRecords() {
                     <label className="label">Downtime (min)</label>
                     <input type="number" min="0" className="input" value={modalForm.downtime_minutes}
                       onChange={e => setM('downtime_minutes', e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="label">Run Time (min)</label>
+                    <input type="number" min="0" className="input" value={modalForm.run_time_minutes}
+                      onChange={e => setM('run_time_minutes', e.target.value)} />
                   </div>
                   <div className="sm:col-span-3 space-y-1">
                     <label className="label">Issue Description</label>

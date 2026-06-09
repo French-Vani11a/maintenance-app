@@ -282,3 +282,108 @@ Two-tab page:
 - Inline service details panel (Service History list + add form, Parts Replacement list + add form) that previously appeared below the table
 - All related state and handler functions (`activeEquipment`, `serviceHistory`, `partsReplacements`, `loadServiceDetails`, `openServicePanel`, `handleCreateServiceHistory`, `handleCreatePartsReplacement`)
 - Unused imports: `Eye`, `createPartsReplacement`, `createServiceHistory`, `getPartsReplacements`, `getServiceHistory`, `ServiceHistory`, `PartsReplacement`
+
+---
+
+## Service History Filters and Service Now Due Sections
+
+**`frontend/src/pages/ServiceNow.tsx`**
+
+### Service History filter layout
+- Changed the Service History filter grid to support six controls per row on wide screens.
+- Moved `All / Equipment / Component`, **Apply Filters**, **Clear**, and **Export CSV** into the filter grid row with `Artisan`.
+- Combined **Apply Filters** and **Clear** into the same grid cell so they sit side by side.
+- Changed **Export CSV** to use the blue primary button styling and align to the far-right grid slot.
+
+### Due service section styling
+- Kept **Equipment Due for Service** on the default card background.
+- Applied the soft red card treatment only to **Components Due for Service**.
+
+---
+
+## Maintenance Records — Optional Run Time
+
+### Backend
+
+**`backend/app/models/maintenance_record.py`**
+- Added nullable `run_time_minutes` column to maintenance records.
+
+**`backend/app/main.py`**
+- Added `ensure_schema_updates()` guard to add `run_time_minutes` to existing databases.
+
+**`backend/app/schemas/maintenance_record.py`**
+- Added optional `run_time_minutes` to create, update, and response schemas.
+- Added missing `equipment_group_id` support to maintenance record updates.
+
+**`backend/app/routers/maintenance_records.py`**
+- Included `run_time_minutes` in enriched record API responses.
+- Added **Run Time (mins)** to maintenance record CSV export.
+
+**`backend/app/routers/import_excel.py`**
+- Added optional **Run Time** column to the Excel import template.
+- Updated template examples and instructions for Run Time.
+
+**`backend/app/services/excel_importer.py`**
+- Added Run Time column aliases: `run time`, `runtime`, `running time`, `run hours`, `machine run time`.
+- Parses Run Time into `run_time_minutes`.
+- Updated duration parsing so numeric values match the template behavior: small numbers are treated as hours, larger values as minutes.
+
+### Frontend
+
+**`frontend/src/types/index.ts`**
+- Added `run_time_minutes` to `MaintenanceRecord`.
+
+**`frontend/src/pages/RecordForm.tsx`**
+- Added optional **Run Time (minutes)** field to the new/edit maintenance record form.
+- Sends `run_time_minutes` as `null` when left blank.
+
+**`frontend/src/pages/MaintenanceRecords.tsx`**
+- Added **Run Time** column to the records table.
+- Removed `created_by` from the records table and toolbar filter.
+- Kept Created By visible in the record detail modal.
+- Added Run Time to the modal view and edit form.
+
+**`frontend/src/pages/Reports.tsx`**
+- Added **Run Time** column to the reports records table.
+
+**`frontend/src/pages/ImportPage.tsx`**
+- Updated import helper text to mention optional Run Time.
+
+---
+
+## Service Notifications — Components Included
+
+### Backend
+
+**`backend/app/routers/service_dashboard.py`**
+- Added component overdue totals into **Overdue by Plant**.
+- Added `equipment_id` to component service notification payloads so the frontend can open the parent equipment.
+- Service dashboard stats already included component counts and lists; those are now used by the notification bell.
+- Due Soon remains inclusive of Due Today for both equipment and components.
+
+### Frontend
+
+**`frontend/src/types/index.ts`**
+- Added `equipment_id` to component service dashboard item types.
+
+**`frontend/src/components/NotificationBell.tsx`**
+- Combined equipment and component items under:
+  - **Overdue Services**
+  - **Due Today**
+  - **Due Soon**
+- Badge counts now include component counts.
+- Component rows display the component name with the parent equipment name.
+- Clicking a component notification opens its parent equipment using the existing equipment navigation behavior.
+- Open job card notifications now show component names when the card is for a component.
+
+---
+
+## Dashboard — Downtime by Plant Chart
+
+**`frontend/src/pages/Dashboard.tsx`**
+
+- Limited **Downtime by Plant (minutes)** to the top 10 plants.
+- Increased the Y-axis label width to reduce wrapped/clipped plant names.
+- Added dynamic chart height based on the number of visible plants.
+- Added plant-name truncation on the axis while preserving full labels in the tooltip.
+- Updated default selected plant logic to choose from the visible top-10 list.

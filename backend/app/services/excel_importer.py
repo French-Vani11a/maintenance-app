@@ -13,13 +13,13 @@ def get_sheet_names(file_path: str) -> List[str]:
 def _parse_downtime_to_minutes(value: Any) -> int:
     """
     Convert a variety of downtime representations to integer minutes.
-    Handles: numeric (treated as hours), "2:30", "2h 30m", "150 min", etc.
+    Handles: numeric minutes/hours, "2:30", "2h 30m", "150 min", etc.
     """
     if value is None or (isinstance(value, float) and pd.isna(value)):
         return 0
     if isinstance(value, (int, float)):
-        # Assume the raw number is hours if > 0
-        return int(value * 60)
+        # Match string parsing: small values are hours, larger values are minutes.
+        return int(value * 60) if value <= 24 else int(value)
 
     text = str(value).strip()
     if not text or text.lower() in ("nan", "none", "-", "n/a"):
@@ -103,6 +103,7 @@ _COL_ALIASES: Dict[str, List[str]] = {
     "arrival_time": ["arrival time", "time of arrival", "arrived", "arrival"],
     "finishing_time": ["finishing time", "finish time", "completed", "time finished", "finished"],
     "downtime": ["downtime", "down time", "duration", "hrs down", "hours down"],
+    "run_time": ["run time", "runtime", "running time", "run hours", "machine run time"],
     "remarks": ["remarks", "notes", "observation"],
     "record_type": ["record type", "type", "maintenance type", "fault type", "call type"],
 }
@@ -199,7 +200,7 @@ def parse_excel_maintenance_records(
         record: Dict[str, Any] = {"record_date": record_date}
 
         for field, col in col_map.items():
-            if field in ("date", "downtime"):
+            if field in ("date", "downtime", "run_time"):
                 continue
             val = row.get(col)
             if pd.isna(val) or str(val).strip() in ("", "nan"):
@@ -212,6 +213,12 @@ def parse_excel_maintenance_records(
             record["downtime_minutes"] = _parse_downtime_to_minutes(row.get(col_map["downtime"]))
         else:
             record["downtime_minutes"] = 0
+
+        if "run_time" in col_map:
+            run_time = _parse_downtime_to_minutes(row.get(col_map["run_time"]))
+            record["run_time_minutes"] = run_time if run_time > 0 else None
+        else:
+            record["run_time_minutes"] = None
 
         computed_downtime = _compute_downtime_from_times(
             record.get("arrival_time"),

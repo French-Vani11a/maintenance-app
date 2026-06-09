@@ -156,7 +156,7 @@ export default function ImportPage() {
                 will auto-detect column headers.
               </p>
               <p className="text-xs text-gray-500 mt-2">
-                Note: Downtime is auto-calculated from arrival and finishing times when both are provided. If a matching record already exists, it will be updated instead of duplicated.
+                Note: Downtime is auto-calculated from arrival and finishing times when both are provided. Run Time is optional. If a matching record already exists, it will be updated instead of duplicated.
               </p>
             </div>
             <button

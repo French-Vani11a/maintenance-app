@@ -72,6 +72,7 @@ export default function Dashboard() {
   const [equipmentDowntime, setEquipmentDowntime] = useState<DowntimeByEquipment[]>([])
   const [equipmentLoading, setEquipmentLoading] = useState(false)
   const [equipmentError, setEquipmentError] = useState('')
+  const topDowntimePlants = (stats?.downtime_by_plant ?? []).slice(0, 10)
 
   useEffect(() => {
     setLoading(true)
@@ -79,11 +80,12 @@ export default function Dashboard() {
     getDashboardStatsByDateRange(dateFrom || undefined, dateTo || undefined)
       .then((data) => {
         setStats(data)
-        if (data.downtime_by_plant.length > 0) {
+        const topPlants = data.downtime_by_plant.slice(0, 10)
+        if (topPlants.length > 0) {
           setSelectedPlant((current) =>
-            current && data.downtime_by_plant.some((p) => p.id === current.id)
+            current && topPlants.some((p) => p.id === current.id)
               ? current
-              : { id: data.downtime_by_plant[0].id, name: data.downtime_by_plant[0].name }
+              : { id: topPlants[0].id, name: topPlants[0].name }
           )
         } else {
           setSelectedPlant(null)
@@ -249,16 +251,23 @@ export default function Dashboard() {
         <div className="card">
           <h2 className="mb-4 text-sm font-semibold text-gray-700">Downtime by Plant (minutes)</h2>
           <p className="mb-4 text-xs text-gray-500">Click a plant bar to view downtime by equipment in that plant.</p>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={stats.downtime_by_plant} layout="vertical">
+          <ResponsiveContainer width="100%" height={Math.max(280, topDowntimePlants.length * 36)}>
+            <BarChart data={topDowntimePlants} layout="vertical" margin={{ top: 4, right: 20, left: 24, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis type="number" tick={{ fontSize: 11 }} />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={100} />
+              <YAxis
+                type="category"
+                dataKey="name"
+                tick={{ fontSize: 11 }}
+                width={170}
+                tickFormatter={(v: string) => (v.length > 26 ? v.slice(0, 26) + '…' : v)}
+              />
               <Tooltip
                 formatter={(v: number) => [`${v} min`, 'Downtime']}
+                labelFormatter={(label) => label}
               />
               <Bar dataKey="total_downtime" name="Downtime" radius={[0, 4, 4, 0]}>
-                {stats.downtime_by_plant.map((plant, i) => (
+                {topDowntimePlants.map((plant, i) => (
                   <Cell
                     key={plant.id}
                     fill={COLORS[i % COLORS.length]}

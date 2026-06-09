@@ -60,9 +60,70 @@ export default function NotificationBell() {
     }
   }
 
-  const overdueCount  = stats?.overdue_count   ?? 0
-  const dueTodayCount = stats?.due_today_count ?? 0
-  const dueSoonCount  = stats?.due_soon_count  ?? 0
+  const overdueServices = stats
+    ? [
+        ...stats.overdue_services.map((item) => ({
+          key: `equipment-${item.id}`,
+          equipmentId: item.id,
+          name: item.equipment_name,
+          detail: 'Equipment',
+          plantName: item.plant_name,
+          nextServiceDate: item.next_service_date,
+        })),
+        ...(stats.overdue_component_services ?? []).map((item) => ({
+          key: `component-${item.id}`,
+          equipmentId: item.equipment_id,
+          name: item.component_name,
+          detail: `Component · ${item.equipment_name}`,
+          plantName: item.plant_name,
+          nextServiceDate: item.next_service_date,
+        })),
+      ]
+    : []
+  const dueTodayServices = stats
+    ? [
+        ...stats.due_today_services.map((item) => ({
+          key: `equipment-${item.id}`,
+          equipmentId: item.id,
+          name: item.equipment_name,
+          detail: 'Equipment',
+          plantName: item.plant_name,
+          nextServiceDate: item.next_service_date,
+        })),
+        ...(stats.due_today_component_services ?? []).map((item) => ({
+          key: `component-${item.id}`,
+          equipmentId: item.equipment_id,
+          name: item.component_name,
+          detail: `Component · ${item.equipment_name}`,
+          plantName: item.plant_name,
+          nextServiceDate: item.next_service_date,
+        })),
+      ]
+    : []
+  const dueSoonServices = stats
+    ? [
+        ...stats.upcoming_services.map((item) => ({
+          key: `equipment-${item.id}`,
+          equipmentId: item.id,
+          name: item.equipment_name,
+          detail: 'Equipment',
+          plantName: item.plant_name,
+          nextServiceDate: item.next_service_date,
+        })),
+        ...(stats.upcoming_component_services ?? []).map((item) => ({
+          key: `component-${item.id}`,
+          equipmentId: item.equipment_id,
+          name: item.component_name,
+          detail: `Component · ${item.equipment_name}`,
+          plantName: item.plant_name,
+          nextServiceDate: item.next_service_date,
+        })),
+      ]
+    : []
+
+  const overdueCount  = (stats?.overdue_count ?? 0) + (stats?.overdue_component_count ?? 0)
+  const dueTodayCount = (stats?.due_today_count ?? 0) + (stats?.due_today_component_count ?? 0)
+  const dueSoonCount  = (stats?.due_soon_count ?? 0) + (stats?.due_soon_component_count ?? 0)
   const openCardCount = activeCards.length
   const totalCount    = overdueCount + dueTodayCount + dueSoonCount + openCardCount
 
@@ -113,11 +174,11 @@ export default function NotificationBell() {
                     <button onClick={() => { setOpen(false); navigate('/service-now') }} className="w-full px-4 py-3 text-left text-xs font-medium text-purple-600 bg-purple-50 hover:bg-purple-100 transition-colors underline underline-offset-2">
                       More than 5 overdue — click here to view all
                     </button>
-                  ) : (stats!.overdue_services ?? []).map((item) => (
-                    <button key={item.id} onClick={() => goToEquipment(item.id)} className="w-full px-4 py-2.5 text-left bg-purple-50 hover:bg-purple-100 transition-colors">
-                      <p className="text-sm font-medium text-gray-800">{item.equipment_name}</p>
+                  ) : overdueServices.map((item) => (
+                    <button key={item.key} onClick={() => goToEquipment(item.equipmentId)} className="w-full px-4 py-2.5 text-left bg-purple-50 hover:bg-purple-100 transition-colors">
+                      <p className="text-sm font-medium text-gray-800">{item.name}</p>
                       <p className="text-xs text-gray-500">
-                        {item.plant_name ?? '—'} · Due: <span className="text-purple-600">{item.next_service_date ?? '—'}</span>
+                        {item.detail} · {item.plantName ?? '—'} · Due: <span className="text-purple-600">{item.nextServiceDate ?? '—'}</span>
                       </p>
                     </button>
                   ))}
@@ -137,11 +198,11 @@ export default function NotificationBell() {
                     <button onClick={() => { setOpen(false); navigate('/service-now') }} className="w-full px-4 py-3 text-left text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 transition-colors underline underline-offset-2">
                       More than 5 due today — click here to view all
                     </button>
-                  ) : (stats!.due_today_services ?? []).map((item) => (
-                    <button key={item.id} onClick={() => goToEquipment(item.id)} className="w-full px-4 py-2.5 text-left bg-red-50 hover:bg-red-100 transition-colors">
-                      <p className="text-sm font-medium text-gray-800">{item.equipment_name}</p>
+                  ) : dueTodayServices.map((item) => (
+                    <button key={item.key} onClick={() => goToEquipment(item.equipmentId)} className="w-full px-4 py-2.5 text-left bg-red-50 hover:bg-red-100 transition-colors">
+                      <p className="text-sm font-medium text-gray-800">{item.name}</p>
                       <p className="text-xs text-gray-500">
-                        {item.plant_name ?? '—'} · Due: <span className="text-red-600">{item.next_service_date ?? '—'}</span>
+                        {item.detail} · {item.plantName ?? '—'} · Due: <span className="text-red-600">{item.nextServiceDate ?? '—'}</span>
                       </p>
                     </button>
                   ))}
@@ -161,11 +222,11 @@ export default function NotificationBell() {
                     <button onClick={() => { setOpen(false); navigate('/service-now') }} className="w-full px-4 py-3 text-left text-xs font-medium text-yellow-700 bg-yellow-50 hover:bg-yellow-100 transition-colors underline underline-offset-2">
                       More than 5 due soon — click here to view all
                     </button>
-                  ) : (stats!.upcoming_services ?? []).map((item) => (
-                    <button key={item.id} onClick={() => goToEquipment(item.id)} className="w-full px-4 py-2.5 text-left bg-yellow-50 hover:bg-yellow-100 transition-colors">
-                      <p className="text-sm font-medium text-gray-800">{item.equipment_name}</p>
+                  ) : dueSoonServices.map((item) => (
+                    <button key={item.key} onClick={() => goToEquipment(item.equipmentId)} className="w-full px-4 py-2.5 text-left bg-yellow-50 hover:bg-yellow-100 transition-colors">
+                      <p className="text-sm font-medium text-gray-800">{item.name}</p>
                       <p className="text-xs text-gray-500">
-                        {item.plant_name ?? '—'} · Due: <span className="text-yellow-700">{item.next_service_date ?? '—'}</span>
+                        {item.detail} · {item.plantName ?? '—'} · Due: <span className="text-yellow-700">{item.nextServiceDate ?? '—'}</span>
                       </p>
                     </button>
                   ))}
@@ -189,7 +250,7 @@ export default function NotificationBell() {
                     <button key={jc.id} onClick={() => goToJobCard(jc)} className="w-full px-4 py-2.5 text-left bg-blue-50 hover:bg-blue-100 transition-colors">
                       <p className="text-sm font-medium text-gray-800">{jc.job_card_number}</p>
                       <p className="text-xs text-gray-500">
-                        {jc.equipment_name ?? '—'} · {jc.assigned_artisan ?? 'Unassigned'}
+                        {jc.component_id ? `${jc.component_name ?? 'Component'} · ${jc.equipment_name ?? '—'}` : jc.equipment_name ?? '—'} · {jc.assigned_artisan ?? 'Unassigned'}
                       </p>
                     </button>
                   ))}

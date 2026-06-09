@@ -227,6 +227,7 @@ export default function Reports() {
                 <th>created_by</th>
                 <th>Issue</th>
                 <th>Downtime</th>
+                <th>Run Time</th>
                 <th>Status</th>
               </tr>
             </thead>
@@ -241,12 +242,13 @@ export default function Reports() {
                   <td>{r.created_by_user_name || '—'}</td>
                   <td className="max-w-[200px] truncate" title={r.issue_description || ''}>{r.issue_description || '—'}</td>
                   <td className="font-medium text-orange-600">{fmtMins(r.downtime_minutes)}</td>
+                  <td className="font-medium text-blue-600">{fmtMins(r.run_time_minutes)}</td>
                   <td><StatusBadge status={r.status} /></td>
                 </tr>
               ))}
               {records.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={9} className="text-center text-gray-400 py-8">
+                  <td colSpan={10} className="text-center text-gray-400 py-8">
                     No records match the selected filters
                   </td>
                 </tr>

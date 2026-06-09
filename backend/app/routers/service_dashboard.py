@@ -86,7 +86,7 @@ def get_service_dashboard_stats(
         key = s.service_status or "Not Scheduled"
         status_map[key] = status_map.get(key, 0) + s.count
 
-    overdue_by_plant = (
+    overdue_equipment_by_plant = (
         db.query(
             Plant.id,
             Plant.name,
@@ -98,6 +98,25 @@ def get_service_dashboard_stats(
         .order_by(func.count(Equipment.id).desc())
         .all()
     )
+    overdue_components_by_plant = (
+        db.query(
+            Plant.id,
+            Plant.name,
+            func.count(EquipmentComponent.id).label("overdue_count"),
+        )
+        .join(Equipment, Plant.id == Equipment.plant_id)
+        .join(EquipmentComponent, Equipment.id == EquipmentComponent.equipment_id)
+        .filter(EquipmentComponent.next_service_date != None, EquipmentComponent.next_service_date < today)
+        .group_by(Plant.id, Plant.name)
+        .all()
+    )
+    overdue_by_plant_map: dict[int, dict] = {}
+    for p in overdue_equipment_by_plant:
+        overdue_by_plant_map[p.id] = {"id": p.id, "name": p.name, "overdue_count": p.overdue_count}
+    for p in overdue_components_by_plant:
+        if p.id not in overdue_by_plant_map:
+            overdue_by_plant_map[p.id] = {"id": p.id, "name": p.name, "overdue_count": 0}
+        overdue_by_plant_map[p.id]["overdue_count"] += p.overdue_count
 
     due_today_services = (
         db.query(
@@ -184,6 +203,7 @@ def get_service_dashboard_stats(
     overdue_component_services = (
         db.query(
             EquipmentComponent.id,
+            EquipmentComponent.equipment_id,
             EquipmentComponent.component_name,
             Equipment.equipment_name,
             Plant.name.label("plant_name"),
@@ -200,6 +220,7 @@ def get_service_dashboard_stats(
     due_today_component_services = (
         db.query(
             EquipmentComponent.id,
+            EquipmentComponent.equipment_id,
             EquipmentComponent.component_name,
             Equipment.equipment_name,
             Plant.name.label("plant_name"),
@@ -216,6 +237,7 @@ def get_service_dashboard_stats(
     upcoming_component_services = (
         db.query(
             EquipmentComponent.id,
+            EquipmentComponent.equipment_id,
             EquipmentComponent.component_name,
             Equipment.equipment_name,
             Plant.name.label("plant_name"),
@@ -249,10 +271,11 @@ def get_service_dashboard_stats(
             {"status": status, "count": count}
             for status, count in sorted(status_map.items())
         ],
-        "overdue_by_plant": [
-            {"id": p.id, "name": p.name, "overdue_count": p.overdue_count}
-            for p in overdue_by_plant
-        ],
+        "overdue_by_plant": sorted(
+            overdue_by_plant_map.values(),
+            key=lambda p: p["overdue_count"],
+            reverse=True,
+        ),
         "due_today_services": [
             {
                 "id": e.id,
@@ -289,6 +312,7 @@ def get_service_dashboard_stats(
         "overdue_component_services": [
             {
                 "id": c.id,
+                "equipment_id": c.equipment_id,
                 "component_name": c.component_name,
                 "equipment_name": c.equipment_name,
                 "plant_name": c.plant_name,
@@ -301,6 +325,7 @@ def get_service_dashboard_stats(
         "due_today_component_services": [
             {
                 "id": c.id,
+                "equipment_id": c.equipment_id,
                 "component_name": c.component_name,
                 "equipment_name": c.equipment_name,
                 "plant_name": c.plant_name,
@@ -313,6 +338,7 @@ def get_service_dashboard_stats(
         "upcoming_component_services": [
             {
                 "id": c.id,
+                "equipment_id": c.equipment_id,
                 "component_name": c.component_name,
                 "equipment_name": c.equipment_name,
                 "plant_name": c.plant_name,
