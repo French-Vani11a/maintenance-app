@@ -111,22 +111,26 @@ export default function LoginToastNotifications() {
 
         const items: Omit<ToastItem, 'exiting'>[] = []
 
-        if (stats.overdue_count > 0) {
+        const overdueTotal  = stats.overdue_count  + (stats.overdue_component_count  ?? 0)
+        const dueTodayTotal = stats.due_today_count + (stats.due_today_component_count ?? 0)
+        const dueSoonTotal  = stats.due_soon_count  + (stats.due_soon_component_count  ?? 0)
+
+        if (overdueTotal > 0) {
           items.push({
             id: 'overdue',
-            message: `${stats.overdue_count} ${plural(stats.overdue_count, 'service is', 'services are')} overdue`,
+            message: `${overdueTotal} ${plural(overdueTotal, 'service is', 'services are')} overdue`,
           })
         }
-        if (stats.due_today_count > 0) {
+        if (dueTodayTotal > 0) {
           items.push({
             id: 'due-today',
-            message: `${stats.due_today_count} ${plural(stats.due_today_count, 'service is', 'services are')} due today`,
+            message: `${dueTodayTotal} ${plural(dueTodayTotal, 'service is', 'services are')} due today`,
           })
         }
-        if (stats.due_soon_count > 0) {
+        if (dueSoonTotal > 0) {
           items.push({
             id: 'due-soon',
-            message: `${stats.due_soon_count} ${plural(stats.due_soon_count, 'service is', 'services are')} due within the next 14 days`,
+            message: `${dueSoonTotal} ${plural(dueSoonTotal, 'service is', 'services are')} due within the next 14 days`,
           })
         }
         if (critHighCards.length > 0) {
