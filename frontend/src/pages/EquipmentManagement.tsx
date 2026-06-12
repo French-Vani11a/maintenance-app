@@ -474,6 +474,8 @@ export default function EquipmentManagement() {
   }
   const [addingComponent, setAddingComponent] = useState(false)
   const [newCompForm, setNewCompForm] = useState({ ...EMPTY_COMP_FORM })
+  const [newCompFormPlant, setNewCompFormPlant] = useState<number | null>(null)
+  const [newCompFormGroup, setNewCompFormGroup] = useState<number | null>(null)
   const [editCompForm, setEditCompForm] = useState({ ...EMPTY_COMP_FORM })
   const [compFormSaving, setCompFormSaving] = useState(false)
 
@@ -832,73 +834,142 @@ export default function EquipmentManagement() {
             </button>
           </div>
 
-          {/* Add component form */}
+          {/* Add component modal */}
           {addingComponent && (
-            <div className="card grid gap-4 lg:grid-cols-3">
-              <div className="space-y-2">
-                <label className="label">Equipment *</label>
-                <select
-                  className="input"
-                  value={newCompForm.equipment_id ?? ''}
-                  onChange={(e) => setNewCompForm((f) => ({ ...f, equipment_id: e.target.value ? Number(e.target.value) : null }))}
-                >
-                  <option value="">Select equipment</option>
-                  {allEquipment.map((eq) => <option key={eq.id} value={eq.id}>{eq.equipment_name}</option>)}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="label">Component Name *</label>
-                <input type="text" className="input" placeholder="Component name" value={newCompForm.component_name} onChange={(e) => setNewCompForm((f) => ({ ...f, component_name: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <label className="label">Manufacturer</label>
-                <input type="text" className="input" value={newCompForm.manufacturer} onChange={(e) => setNewCompForm((f) => ({ ...f, manufacturer: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <label className="label">Model Number</label>
-                <input type="text" className="input" value={newCompForm.model_number} onChange={(e) => setNewCompForm((f) => ({ ...f, model_number: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <label className="label">Last Service Date</label>
-                <input type="date" className="input" value={newCompForm.last_service_date} onChange={(e) => setNewCompForm((f) => ({ ...f, last_service_date: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <label className="label">Interval (days)</label>
-                <input type="number" min={1} className="input" value={newCompForm.service_interval_days ?? ''} onChange={(e) => setNewCompForm((f) => ({ ...f, service_interval_days: e.target.value ? Number(e.target.value) : null }))} />
-              </div>
-              <div className="space-y-2">
-                <label className="label">Next Service</label>
-                <div className="text-sm text-gray-700 py-2">{calculateNextServiceDate(newCompForm.last_service_date, newCompForm.service_interval_days) || '—'}</div>
-              </div>
-              <div className="space-y-2">
-                <label className="label">Service Status</label>
-                <div className="text-sm text-gray-700 py-2">{calculateServiceStatus(newCompForm.last_service_date, newCompForm.service_interval_days)}</div>
-              </div>
-              <div className="space-y-2">
-                <label className="label">Status</label>
-                <select className="input" value={newCompForm.status} onChange={(e) => setNewCompForm((f) => ({ ...f, status: e.target.value }))}>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </div>
-              <div className="lg:col-span-3 space-y-2">
-                <label className="label">Description</label>
-                <textarea className="input resize-none" rows={2} value={newCompForm.description} onChange={(e) => setNewCompForm((f) => ({ ...f, description: e.target.value }))} />
-              </div>
-              <div className="lg:col-span-3 space-y-2">
-                <label className="label">Notes</label>
-                <input type="text" className="input" value={newCompForm.notes} onChange={(e) => setNewCompForm((f) => ({ ...f, notes: e.target.value }))} />
-              </div>
-              <div className="flex items-end gap-2">
-                <button
-                  disabled={compFormSaving}
-                  onClick={() => handleCreateComponent(newCompForm, () => { setAddingComponent(false); setNewCompForm({ ...EMPTY_COMP_FORM }); loadComponents() })}
-                  className="btn-primary flex items-center gap-1.5"
-                >
-                  {compFormSaving ? <LoadingSpinner size="sm" /> : <Check className="h-4 w-4" />}
-                  Save
-                </button>
-                <button onClick={() => setAddingComponent(false)} className="btn-secondary">Cancel</button>
+            <div
+              className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto"
+              onClick={() => { setAddingComponent(false); setNewCompFormPlant(null); setNewCompFormGroup(null) }}
+            >
+              <div className="card w-full max-w-5xl my-8 space-y-4" onClick={(e) => e.stopPropagation()}>
+                {/* Modal header */}
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-gray-800">Add Component</h2>
+                  <button
+                    onClick={() => { setAddingComponent(false); setNewCompFormPlant(null); setNewCompFormGroup(null) }}
+                    className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-5">
+                  {/* Row 1: plant/group filters + equipment + name + status */}
+                  <div className="space-y-2">
+                    <label className="label">Plant</label>
+                    <select
+                      className="input"
+                      value={newCompFormPlant ?? ''}
+                      onChange={(e) => {
+                        const val = e.target.value ? Number(e.target.value) : null
+                        setNewCompFormPlant(val)
+                        setNewCompFormGroup(null)
+                        setNewCompForm((f) => ({ ...f, equipment_id: null }))
+                      }}
+                    >
+                      <option value="">All plants</option>
+                      {plants.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="label">Group</label>
+                    <select
+                      className="input"
+                      value={newCompFormGroup ?? ''}
+                      disabled={!newCompFormPlant}
+                      onChange={(e) => {
+                        setNewCompFormGroup(e.target.value ? Number(e.target.value) : null)
+                        setNewCompForm((f) => ({ ...f, equipment_id: null }))
+                      }}
+                    >
+                      <option value="">{newCompFormPlant ? 'All groups' : 'Select plant first'}</option>
+                      {newCompFormPlant
+                        ? groups.filter((g) => g.plant_id === newCompFormPlant).map((g) => (
+                            <option key={g.id} value={g.id}>{g.name}</option>
+                          ))
+                        : null}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="label">Equipment *</label>
+                    <select
+                      className="input"
+                      value={newCompForm.equipment_id ?? ''}
+                      onChange={(e) => setNewCompForm((f) => ({ ...f, equipment_id: e.target.value ? Number(e.target.value) : null }))}
+                    >
+                      <option value="">Select equipment</option>
+                      {allEquipment
+                        .filter((eq) => {
+                          if (newCompFormGroup) return eq.equipment_group_id === newCompFormGroup
+                          if (newCompFormPlant) return eq.plant_id === newCompFormPlant
+                          return true
+                        })
+                        .map((eq) => <option key={eq.id} value={eq.id}>{eq.equipment_name}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="label">Component Name *</label>
+                    <input type="text" className="input" placeholder="Component name" value={newCompForm.component_name} onChange={(e) => setNewCompForm((f) => ({ ...f, component_name: e.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="label">Status</label>
+                    <select className="input" value={newCompForm.status} onChange={(e) => setNewCompForm((f) => ({ ...f, status: e.target.value }))}>
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </div>
+
+                  {/* Row 2: service fields */}
+                  <div className="space-y-2">
+                    <label className="label">Manufacturer</label>
+                    <input type="text" className="input" value={newCompForm.manufacturer} onChange={(e) => setNewCompForm((f) => ({ ...f, manufacturer: e.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="label">Model Number</label>
+                    <input type="text" className="input" value={newCompForm.model_number} onChange={(e) => setNewCompForm((f) => ({ ...f, model_number: e.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="label">Last Service Date</label>
+                    <input type="date" className="input" value={newCompForm.last_service_date} onChange={(e) => setNewCompForm((f) => ({ ...f, last_service_date: e.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="label">Interval (days)</label>
+                    <input type="number" min={1} className="input" value={newCompForm.service_interval_days ?? ''} onChange={(e) => setNewCompForm((f) => ({ ...f, service_interval_days: e.target.value ? Number(e.target.value) : null }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="label">Next Service</label>
+                    <div className="input bg-gray-50 text-sm text-gray-600 flex items-center">
+                      {calculateNextServiceDate(newCompForm.last_service_date, newCompForm.service_interval_days) || '—'}
+                    </div>
+                  </div>
+
+                  {/* Row 3: description + notes */}
+                  <div className="lg:col-span-5 space-y-2">
+                    <label className="label">Description</label>
+                    <textarea className="input resize-none" rows={2} value={newCompForm.description} onChange={(e) => setNewCompForm((f) => ({ ...f, description: e.target.value }))} />
+                  </div>
+                  <div className="lg:col-span-5 space-y-2">
+                    <label className="label">Notes</label>
+                    <input type="text" className="input" value={newCompForm.notes} onChange={(e) => setNewCompForm((f) => ({ ...f, notes: e.target.value }))} />
+                  </div>
+
+                  <div className="lg:col-span-5 flex items-center gap-2">
+                    <button
+                      disabled={compFormSaving}
+                      onClick={() => handleCreateComponent(newCompForm, () => {
+                        setAddingComponent(false)
+                        setNewCompForm({ ...EMPTY_COMP_FORM })
+                        setNewCompFormPlant(null)
+                        setNewCompFormGroup(null)
+                        loadComponents()
+                      })}
+                      className="btn-primary flex items-center gap-1.5"
+                    >
+                      {compFormSaving ? <LoadingSpinner size="sm" /> : <Check className="h-4 w-4" />}
+                      Save
+                    </button>
+                    <button onClick={() => { setAddingComponent(false); setNewCompFormPlant(null); setNewCompFormGroup(null) }} className="btn-secondary">Cancel</button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -1249,125 +1320,113 @@ export default function EquipmentManagement() {
         </div>
 
         {addingEquip && (
-          <div className="card grid gap-4 lg:grid-cols-3">
-            <div className="space-y-2">
-              <label className="label">Name *</label>
-              <input type="text" className="input" placeholder="Equipment name" value={newEquipForm.name} onChange={(e) => setNewEquipForm((f) => ({ ...f, name: e.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <label className="label">Code</label>
-              <input type="text" className="input" placeholder="Code" value={newEquipForm.code} onChange={(e) => setNewEquipForm((f) => ({ ...f, code: e.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <label className="label">Manufacturer</label>
-              <input type="text" className="input" placeholder="Manufacturer" value={newEquipForm.manufacturer} onChange={(e) => setNewEquipForm((f) => ({ ...f, manufacturer: e.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <label className="label">Model Number</label>
-              <input type="text" className="input" placeholder="Model number" value={newEquipForm.model_number} onChange={(e) => setNewEquipForm((f) => ({ ...f, model_number: e.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <label className="label">Service Type</label>
-              <input type="text" className="input" placeholder="Service type" value={newEquipForm.service_type} onChange={(e) => setNewEquipForm((f) => ({ ...f, service_type: e.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <label className="label">Last Service</label>
-              <input type="date" className="input" value={newEquipForm.last_service_date} onChange={(e) => setNewEquipForm((f) => ({ ...f, last_service_date: e.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <label className="label">Interval (days)</label>
-              <input
-                type="number"
-                min={1}
-                className="input"
-                value={newEquipForm.service_interval_days ?? ''}
-                onChange={(e) => setNewEquipForm((f) => ({ ...f, service_interval_days: e.target.value ? Number(e.target.value) : null }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="label">Service Notes</label>
-              <input
-                type="text"
-                className="input"
-                placeholder="Notes"
-                value={newEquipForm.service_notes}
-                onChange={(e) => setNewEquipForm((f) => ({ ...f, service_notes: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="label">Plant</label>
-              <select
-                className="input"
-                value={newEquipForm.plant_id ?? ''}
-                onChange={(e) =>
-                  setNewEquipForm((f) => ({
-                    ...f,
-                    plant_id: e.target.value ? Number(e.target.value) : null,
-                    equipment_group_id: null,
-                  }))
-                }
-              >
-                <option value="">Unassigned</option>
-                {plants.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <label className="label">Group</label>
-              <select
-                className="input"
-                value={newEquipForm.equipment_group_id ?? ''}
-                disabled={!newEquipForm.plant_id}
-                onChange={(e) =>
-                  setNewEquipForm((f) => ({
-                    ...f,
-                    equipment_group_id: e.target.value ? Number(e.target.value) : null,
-                  }))
-                }
-              >
-                <option value="">No group</option>
-                {newEquipForm.plant_id
-                  ? groups
-                      .filter((g) => g.plant_id === newEquipForm.plant_id)
-                      .map((g) => (
-                        <option key={g.id} value={g.id}>
-                          {g.name}
-                        </option>
-                      ))
-                  : null}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <label className="label">Status</label>
-              <select className="input" value={newEquipForm.status} onChange={(e) => setNewEquipForm((f) => ({ ...f, status: e.target.value }))}>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-            </div>
-            <div className="space-y-2">
-              <label className="label">Next Service</label>
-              <div className="text-sm text-gray-700 py-2">{calculateNextServiceDate(newEquipForm.last_service_date, newEquipForm.service_interval_days) || '—'}</div>
-            </div>
-            <div className="space-y-2">
-              <label className="label">Service Status</label>
-              <div className="text-sm text-gray-700 py-2">{calculateServiceStatus(newEquipForm.last_service_date, newEquipForm.service_interval_days)}</div>
-            </div>
-            <div className="lg:col-span-3 space-y-2">
-              <label className="label">Description</label>
-              <textarea
-                className="input resize-none"
-                rows={2}
-                placeholder="Equipment description"
-                value={newEquipForm.description}
-                onChange={(e) => setNewEquipForm((f) => ({ ...f, description: e.target.value }))}
-              />
-            </div>
-            <div className="flex items-end gap-2">
-              <button onClick={handleCreateEquip} className="btn-primary">Save</button>
-              <button onClick={() => setAddingEquip(false)} className="btn-secondary">Cancel</button>
+          <div
+            className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto"
+            onClick={() => setAddingEquip(false)}
+          >
+            <div className="card w-full max-w-5xl my-8 space-y-4" onClick={(e) => e.stopPropagation()}>
+              {/* Modal header */}
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-800">Add Equipment</h2>
+                <button onClick={() => setAddingEquip(false)} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-5">
+                {/* Row 1: identity + location + status */}
+                <div className="space-y-2">
+                  <label className="label">Name *</label>
+                  <input type="text" className="input" placeholder="Equipment name" value={newEquipForm.name} onChange={(e) => setNewEquipForm((f) => ({ ...f, name: e.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <label className="label">Code</label>
+                  <input type="text" className="input" placeholder="Code" value={newEquipForm.code} onChange={(e) => setNewEquipForm((f) => ({ ...f, code: e.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <label className="label">Plant</label>
+                  <select
+                    className="input"
+                    value={newEquipForm.plant_id ?? ''}
+                    onChange={(e) => setNewEquipForm((f) => ({ ...f, plant_id: e.target.value ? Number(e.target.value) : null, equipment_group_id: null }))}
+                  >
+                    <option value="">Unassigned</option>
+                    {plants.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="label">Group</label>
+                  <select
+                    className="input"
+                    value={newEquipForm.equipment_group_id ?? ''}
+                    disabled={!newEquipForm.plant_id}
+                    onChange={(e) => setNewEquipForm((f) => ({ ...f, equipment_group_id: e.target.value ? Number(e.target.value) : null }))}
+                  >
+                    <option value="">No group</option>
+                    {newEquipForm.plant_id
+                      ? groups.filter((g) => g.plant_id === newEquipForm.plant_id).map((g) => <option key={g.id} value={g.id}>{g.name}</option>)
+                      : null}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="label">Status</label>
+                  <select className="input" value={newEquipForm.status} onChange={(e) => setNewEquipForm((f) => ({ ...f, status: e.target.value }))}>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
+
+                {/* Row 2: make / service schedule */}
+                <div className="space-y-2">
+                  <label className="label">Manufacturer</label>
+                  <input type="text" className="input" placeholder="Manufacturer" value={newEquipForm.manufacturer} onChange={(e) => setNewEquipForm((f) => ({ ...f, manufacturer: e.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <label className="label">Model Number</label>
+                  <input type="text" className="input" placeholder="Model number" value={newEquipForm.model_number} onChange={(e) => setNewEquipForm((f) => ({ ...f, model_number: e.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <label className="label">Service Type</label>
+                  <input type="text" className="input" placeholder="Service type" value={newEquipForm.service_type} onChange={(e) => setNewEquipForm((f) => ({ ...f, service_type: e.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <label className="label">Last Service</label>
+                  <input type="date" className="input" value={newEquipForm.last_service_date} onChange={(e) => setNewEquipForm((f) => ({ ...f, last_service_date: e.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <label className="label">Interval (days)</label>
+                  <input type="number" min={1} className="input" value={newEquipForm.service_interval_days ?? ''} onChange={(e) => setNewEquipForm((f) => ({ ...f, service_interval_days: e.target.value ? Number(e.target.value) : null }))} />
+                </div>
+
+                {/* Row 3: computed + notes */}
+                <div className="space-y-2">
+                  <label className="label">Next Service</label>
+                  <div className="input bg-gray-50 text-sm text-gray-600 flex items-center">
+                    {calculateNextServiceDate(newEquipForm.last_service_date, newEquipForm.service_interval_days) || '—'}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="label">Service Status</label>
+                  <div className="input bg-gray-50 text-sm text-gray-600 flex items-center">
+                    {calculateServiceStatus(newEquipForm.last_service_date, newEquipForm.service_interval_days)}
+                  </div>
+                </div>
+                <div className="lg:col-span-3 space-y-2">
+                  <label className="label">Service Notes</label>
+                  <input type="text" className="input" placeholder="Notes" value={newEquipForm.service_notes} onChange={(e) => setNewEquipForm((f) => ({ ...f, service_notes: e.target.value }))} />
+                </div>
+
+                {/* Row 4: description */}
+                <div className="lg:col-span-5 space-y-2">
+                  <label className="label">Description</label>
+                  <textarea className="input resize-none" rows={2} placeholder="Equipment description" value={newEquipForm.description} onChange={(e) => setNewEquipForm((f) => ({ ...f, description: e.target.value }))} />
+                </div>
+
+                <div className="lg:col-span-5 flex items-center gap-2">
+                  <button onClick={handleCreateEquip} className="btn-primary">Save</button>
+                  <button onClick={() => setAddingEquip(false)} className="btn-secondary">Cancel</button>
+                </div>
+              </div>
             </div>
           </div>
         )}
