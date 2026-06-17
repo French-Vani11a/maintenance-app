@@ -227,13 +227,14 @@ def get_equipment_downtime_for_plant(
 
     equipment_downtime = (
         db.query(
+            Equipment.id,
             Equipment.equipment_name,
             func.sum(MaintenanceRecord.downtime_minutes).label("total_downtime"),
             func.count(MaintenanceRecord.id).label("fault_count"),
         )
         .join(MaintenanceRecord, Equipment.id == MaintenanceRecord.equipment_id)
         .filter(*period_filters, MaintenanceRecord.plant_id == plant_id)
-        .group_by(Equipment.equipment_name)
+        .group_by(Equipment.id, Equipment.equipment_name)
         .order_by(func.sum(MaintenanceRecord.downtime_minutes).desc())
         .limit(10)
         .all()
@@ -241,6 +242,7 @@ def get_equipment_downtime_for_plant(
 
     return [
         {
+            "id": e.id,
             "name": e.equipment_name,
             "total_downtime": e.total_downtime or 0,
             "fault_count": e.fault_count,

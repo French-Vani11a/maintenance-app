@@ -450,7 +450,7 @@ export async function getDowntimeByEquipmentForPlant(
   plant_id: number,
   date_from?: string,
   date_to?: string
-): Promise<Array<{ name: string; total_downtime: number; fault_count: number }>> {
+): Promise<Array<{ id: number; name: string; total_downtime: number; fault_count: number }>> {
   const res = await api.get('/dashboard/equipment-downtime', {
     params: { plant_id, date_from, date_to },
   })

@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
+import { useNavigate } from 'react-router-dom'
 import {
   AlertTriangle,
   CheckCircle,
   Clock,
+  ChevronLeft,
+  ChevronRight,
   TrendingUp,
   Wrench,
+  X,
 } from 'lucide-react'
 import {
   Bar,
@@ -20,8 +24,8 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { getDashboardStatsByDateRange, getDowntimeByEquipmentForPlant } from '../services/api'
-import type { DashboardStats, DowntimeByEquipment } from '../types'
+import { getDashboardStatsByDateRange, getDowntimeByEquipmentForPlant, getRecords } from '../services/api'
+import type { DashboardStats, DowntimeByEquipment, MaintenanceRecord } from '../types'
 import LoadingSpinner from '../components/LoadingSpinner'
 import LoginToastNotifications from '../components/LoginToastNotifications'
 
@@ -57,7 +61,10 @@ function StatCard({
   )
 }
 
+const RECORDS_PAGE_SIZE = 10
+
 export default function Dashboard() {
+  const navigate = useNavigate()
   const now = new Date()
   const defaultFrom = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
   const defaultTo = now.toISOString().slice(0, 10)
@@ -73,6 +80,24 @@ export default function Dashboard() {
   const [equipmentLoading, setEquipmentLoading] = useState(false)
   const [equipmentError, setEquipmentError] = useState('')
   const topDowntimePlants = (stats?.downtime_by_plant ?? []).slice(0, 10)
+
+  // Equipment records modal
+  const [equipModal, setEquipModal] = useState<{ id: number; name: string } | null>(null)
+  const [equipRecords, setEquipRecords] = useState<MaintenanceRecord[]>([])
+  const [equipRecordsTotal, setEquipRecordsTotal] = useState(0)
+  const [equipRecordsPage, setEquipRecordsPage] = useState(0)
+  const [equipRecordsLoading, setEquipRecordsLoading] = useState(false)
+  const [equipRecordsError, setEquipRecordsError] = useState('')
+
+  useEffect(() => {
+    if (!equipModal) { setEquipRecords([]); setEquipRecordsTotal(0); return }
+    setEquipRecordsLoading(true)
+    setEquipRecordsError('')
+    getRecords({ equipment_id: equipModal.id, skip: equipRecordsPage * RECORDS_PAGE_SIZE, limit: RECORDS_PAGE_SIZE })
+      .then((res) => { setEquipRecords(res.records); setEquipRecordsTotal(res.total) })
+      .catch(() => setEquipRecordsError('Failed to load records'))
+      .finally(() => setEquipRecordsLoading(false))
+  }, [equipModal, equipRecordsPage])
 
   useEffect(() => {
     setLoading(true)
@@ -320,29 +345,41 @@ export default function Dashboard() {
           </div>
         ) : selectedPlant ? (
           equipmentDowntime.length > 0 ? (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={equipmentDowntime} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis type="number" tick={{ fontSize: 11 }} />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  tick={{ fontSize: 11 }}
-                  width={140}
-                  tickFormatter={(v: string) => (v.length > 22 ? v.slice(0, 22) + '…' : v)}
-                />
-                <Tooltip
-                  formatter={(value: number, name: string, props: any) => {
-                    const data = props.payload
-                    return [
-                      `${value} min`,
-                      `Downtime (${data.fault_count} faults)`
-                    ]
-                  }}
-                />
-                <Bar dataKey="total_downtime" name="Downtime" fill="#10b981" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <>
+              <p className="mb-3 text-xs text-gray-500">Click an equipment bar to view its maintenance records.</p>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={equipmentDowntime} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis type="number" tick={{ fontSize: 11 }} />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    tick={{ fontSize: 11 }}
+                    width={140}
+                    tickFormatter={(v: string) => (v.length > 22 ? v.slice(0, 22) + '…' : v)}
+                  />
+                  <Tooltip
+                    formatter={(value: number, name: string, props: any) => {
+                      const data = props.payload
+                      return [
+                        `${value} min`,
+                        `Downtime (${data.fault_count} faults)`
+                      ]
+                    }}
+                  />
+                  <Bar dataKey="total_downtime" name="Downtime" radius={[0, 4, 4, 0]}>
+                    {equipmentDowntime.map((eq, i) => (
+                      <Cell
+                        key={eq.id ?? i}
+                        fill="#10b981"
+                        cursor="pointer"
+                        onClick={() => { setEquipModal({ id: eq.id, name: eq.name }); setEquipRecordsPage(0) }}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </>
           ) : (
             <div className="flex h-64 items-center justify-center text-gray-500">
               No equipment downtime found for this plant in the selected date range.
@@ -414,6 +451,109 @@ export default function Dashboard() {
           </BarChart>
         </ResponsiveContainer>
       </div>
+
+      {/* ── Equipment Records Modal ─────────────────────────────────────── */}
+      {equipModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto"
+          onClick={() => setEquipModal(null)}
+        >
+          <div className="card w-full max-w-4xl my-8 space-y-4" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-800">{equipModal.name}</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Maintenance records — click a row to open it</p>
+              </div>
+              <button
+                onClick={() => setEquipModal(null)}
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {equipRecordsLoading ? (
+              <div className="flex h-40 items-center justify-center"><LoadingSpinner size="lg" /></div>
+            ) : equipRecordsError ? (
+              <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600">{equipRecordsError}</div>
+            ) : equipRecords.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-10">No maintenance records found for this equipment.</p>
+            ) : (
+              <>
+                <div className="table-container">
+                  <table className="table text-sm">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>MR No.</th>
+                        <th>Issue</th>
+                        <th>Artisan</th>
+                        <th>Downtime</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {equipRecords.map((r) => (
+                        <tr
+                          key={r.id}
+                          className="cursor-pointer hover:bg-blue-50/50 transition-colors"
+                          onClick={() => {
+                            setEquipModal(null)
+                            navigate('/records', { state: { openRecordId: r.id } })
+                          }}
+                        >
+                          <td className="text-gray-600">{r.record_date}</td>
+                          <td className="font-mono text-xs text-gray-500">{r.mr_no || '—'}</td>
+                          <td className="max-w-[240px] truncate">{r.issue_description || '—'}</td>
+                          <td className="text-gray-600">{r.artisan_name || '—'}</td>
+                          <td className="text-gray-600">{r.downtime_minutes > 0 ? `${r.downtime_minutes} min` : '—'}</td>
+                          <td>
+                            <span className={`badge ${
+                              r.status === 'closed' ? 'bg-green-100 text-green-800'
+                              : r.status === 'in-progress' ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-red-100 text-red-800'
+                            }`}>
+                              {r.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {equipRecordsTotal > RECORDS_PAGE_SIZE && (
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-sm text-gray-500">
+                      Showing {equipRecordsPage * RECORDS_PAGE_SIZE + 1}–{Math.min((equipRecordsPage + 1) * RECORDS_PAGE_SIZE, equipRecordsTotal)} of {equipRecordsTotal}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="btn-secondary btn-sm"
+                        onClick={() => setEquipRecordsPage((p) => Math.max(0, p - 1))}
+                        disabled={equipRecordsPage === 0}
+                      >
+                        <ChevronLeft className="h-4 w-4" /> Previous
+                      </button>
+                      <span className="text-sm text-gray-600">
+                        Page {equipRecordsPage + 1} of {Math.ceil(equipRecordsTotal / RECORDS_PAGE_SIZE)}
+                      </span>
+                      <button
+                        className="btn-secondary btn-sm"
+                        onClick={() => setEquipRecordsPage((p) => p + 1)}
+                        disabled={(equipRecordsPage + 1) * RECORDS_PAGE_SIZE >= equipRecordsTotal}
+                      >
+                        Next <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
     </div>
   )

@@ -215,6 +215,7 @@ export interface RecordsResponse {
 }
 
 export interface DowntimeByEquipment {
+  id: number
   name: string
   total_downtime: number
   fault_count: number
