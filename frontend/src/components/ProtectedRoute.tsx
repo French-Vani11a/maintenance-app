@@ -6,10 +6,12 @@ export default function ProtectedRoute({
   children,
   adminOnly = false,
   generalOnly = false,
+  noViewer = false,
 }: {
   children: React.ReactNode
   adminOnly?: boolean
   generalOnly?: boolean
+  noViewer?: boolean
 }) {
   const { user, loading } = useAuth()
 
@@ -29,7 +31,11 @@ export default function ProtectedRoute({
     return <Navigate to="/dashboard" replace />
   }
 
-  if (generalOnly && user.role !== 'general') {
+  if (generalOnly && user.role !== 'general' && user.role !== 'viewer') {
+    return <Navigate to="/dashboard" replace />
+  }
+
+  if (noViewer && user.role === 'viewer') {
     return <Navigate to="/dashboard" replace />
   }
 

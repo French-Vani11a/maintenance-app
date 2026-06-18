@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 import {
   AlertTriangle,
   Check,
@@ -345,6 +346,8 @@ const HIST_PAGE_SIZE = 50
 
 export default function ServiceNow() {
   const location = useLocation()
+  const { user } = useAuth()
+  const isViewer = user?.role === 'viewer'
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean; title: string; message: string; onConfirm: () => void
   }>({ open: false, title: '', message: '', onConfirm: () => {} })
@@ -925,7 +928,7 @@ export default function ServiceNow() {
                         <td className="text-sm text-gray-600">{eq.next_service_date ?? '—'}</td>
                         <td><ServiceStatusBadge status={eq.service_status} /></td>
                         <td>
-                          {activeCardsByEquipmentId[eq.id] ? (
+                          {!isViewer && (activeCardsByEquipmentId[eq.id] ? (
                             <button
                               onClick={() => openViewModalWithComplete(activeCardsByEquipmentId[eq.id])}
                               className="w-32 justify-center btn-sm flex items-center gap-1.5 rounded px-2.5 py-1.5 text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition-colors"
@@ -941,7 +944,7 @@ export default function ServiceNow() {
                               <Plus className="h-3.5 w-3.5" />
                               Service Now
                             </button>
-                          )}
+                          ))}
                         </td>
                       </tr>
                     ))}
@@ -1031,7 +1034,7 @@ export default function ServiceNow() {
                           <td className="text-sm text-gray-600">{comp.next_service_date ?? '—'}</td>
                           <td><ServiceStatusBadge status={comp.service_status} /></td>
                           <td>
-                            {activeCardsByComponentId[comp.id] ? (
+                            {!isViewer && (activeCardsByComponentId[comp.id] ? (
                               <button
                                 onClick={() => openViewModalWithComplete(activeCardsByComponentId[comp.id])}
                                 className="w-32 justify-center btn-sm flex items-center gap-1.5 rounded px-2.5 py-1.5 text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition-colors"
@@ -1047,7 +1050,7 @@ export default function ServiceNow() {
                                 <Plus className="h-3.5 w-3.5" />
                                 Service Now
                               </button>
-                            )}
+                            ))}
                           </td>
                         </tr>
                       ))}
@@ -1078,7 +1081,7 @@ export default function ServiceNow() {
           </div>
 
           {/* Manual equipment picker */}
-          <div className="card space-y-4">
+          {!isViewer && <div className="card space-y-4">
             <h2 className="font-semibold text-gray-700">Create Job Card for Any Equipment</h2>
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="space-y-1">
@@ -1145,7 +1148,7 @@ export default function ServiceNow() {
                       </div>
                     )}
                   </div>
-                  {activeCardsByEquipmentId[eq.id] ? (
+                  {!isViewer && (activeCardsByEquipmentId[eq.id] ? (
                     <button
                       onClick={() => openViewModalWithComplete(activeCardsByEquipmentId[eq.id])}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded bg-green-600 text-white hover:bg-green-700 transition-colors shrink-0"
@@ -1161,11 +1164,11 @@ export default function ServiceNow() {
                       <Plus className="h-3.5 w-3.5" />
                       Service
                     </button>
-                  )}
+                  ))}
                 </div>
               )
             })()}
-          </div>
+          </div>}
 
           {/* Open job cards table */}
           <div className="card space-y-4">
@@ -1238,7 +1241,7 @@ export default function ServiceNow() {
                           <button onClick={() => { printJobCard(jc) }} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Print">
                             <Printer className="h-3.5 w-3.5" />
                           </button>
-                          {jc.status !== 'completed' && (
+                          {!isViewer && jc.status !== 'completed' && (
                             <button onClick={() => handleDeleteJobCard(jc.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Delete">
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
@@ -1620,6 +1623,7 @@ export default function ServiceNow() {
                         <textarea className="input resize-none" rows={2} value={viewingCard.notes ?? ''} onChange={(e) => setViewingCard((c) => c ? { ...c, notes: e.target.value } : c)} />
                       </div>
                     </div>
+                    {!isViewer && (
                     <div className="flex gap-2 flex-wrap">
                       <button onClick={handleUpdateJobCard} disabled={jcSaving} className="btn-secondary btn-sm flex items-center gap-1.5">
                         {jcSaving ? <LoadingSpinner size="sm" /> : <Check className="h-4 w-4" />}
@@ -1642,11 +1646,12 @@ export default function ServiceNow() {
                         Mark as Completed
                       </button>
                     </div>
+                    )}
                   </>
                 )}
 
                 {/* Complete form */}
-                {showCompleteForm && (
+                {showCompleteForm && !isViewer && (
                   <div className="space-y-4 rounded-lg bg-green-50 border border-green-200 p-4">
                     <h3 className="text-sm font-semibold text-green-800">Complete Service</h3>
                     <div className="grid gap-3 sm:grid-cols-2">

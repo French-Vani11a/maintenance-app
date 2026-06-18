@@ -163,7 +163,7 @@ export default function Sidebar() {
           />
         ))}
 
-        {standaloneNav.map(({ to, icon: Icon, label }) => (
+        {standaloneNav.filter(({ to }) => !(to === '/import' && user?.role === 'viewer')).map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}
@@ -181,7 +181,7 @@ export default function Sidebar() {
           </NavLink>
         ))}
 
-        {user?.role === 'general' &&
+        {(user?.role === 'general' || user?.role === 'viewer') &&
           generalNav.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}

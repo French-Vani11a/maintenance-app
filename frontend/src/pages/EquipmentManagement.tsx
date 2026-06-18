@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Plus, Pencil, Trash2, Check, X, Building2, ChevronLeft, ChevronRight, Zap, Cpu } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
 import {
   completeJobCard,
   createComponent,
@@ -53,6 +54,8 @@ const EMPTY_EQUIP_FORM = {
 export default function EquipmentManagement() {
   const location = useLocation()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const isViewer = user?.role === 'viewer'
   const [plants, setPlants] = useState<Plant[]>([])
   const [groups, setGroups] = useState<EquipmentGroup[]>([])
   const [equipment, setEquipment] = useState<Equipment[]>([])
@@ -822,6 +825,7 @@ export default function EquipmentManagement() {
               <option value="On Schedule">On Schedule</option>
               <option value="Not Scheduled">Not Scheduled</option>
             </select>
+            {!isViewer && (
             <button
               className="btn-primary btn-sm ml-auto"
               onClick={() => {
@@ -832,6 +836,7 @@ export default function EquipmentManagement() {
               <Plus className="h-3.5 w-3.5" />
               Add Component
             </button>
+            )}
           </div>
 
           {/* Add component modal */}
@@ -1065,12 +1070,14 @@ export default function EquipmentManagement() {
             <Building2 className="h-4 w-4" />
             Plants ({plants.length})
           </h2>
+          {!isViewer && (
           <button
             className="btn-secondary btn-sm"
             onClick={() => setAddingPlant(true)}
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
+          )}
         </div>
 
         {addingPlant && (
@@ -1121,6 +1128,7 @@ export default function EquipmentManagement() {
                   <span className="text-xs text-gray-400">
                     {allEquipment.filter((e) => e.plant_id === p.id).length}
                   </span>
+                  {!isViewer && (
                   <div className="hidden group-hover:flex items-center gap-1">
                     <button
                       onClick={(e) => { e.stopPropagation(); setEditingPlant(p.id); setPlantName(p.name) }}
@@ -1131,6 +1139,7 @@ export default function EquipmentManagement() {
                       className="text-gray-400 hover:text-red-600"
                     ><Trash2 className="h-3 w-3" /></button>
                   </div>
+                  )}
                 </>
               )}
             </li>
@@ -1148,6 +1157,7 @@ export default function EquipmentManagement() {
             <Building2 className="h-4 w-4" />
             Equipment Groups ({selectedPlant ? groups.filter((g) => g.plant_id === selectedPlant).length : 0})
           </h2>
+          {!isViewer && (
           <button
             className="btn-secondary btn-sm"
             onClick={() => {
@@ -1159,6 +1169,7 @@ export default function EquipmentManagement() {
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
+          )}
         </div>
 
         {addingGroup && (
@@ -1238,6 +1249,7 @@ export default function EquipmentManagement() {
                     <span className="text-xs text-gray-400">
                       {g.plant_name || 'Unassigned'}
                     </span>
+                    {!isViewer && (
                     <div className="hidden group-hover:flex items-center gap-1">
                       <button
                         onClick={(e) => { e.stopPropagation(); setEditingGroup(g.id); setGroupName(g.name); setGroupPlantId(g.plant_id) }}
@@ -1248,6 +1260,7 @@ export default function EquipmentManagement() {
                         className="text-gray-400 hover:text-red-600"
                       ><Trash2 className="h-3 w-3" /></button>
                     </div>
+                    )}
                   </>
                 )}
               </li>
@@ -1306,6 +1319,7 @@ export default function EquipmentManagement() {
                   </option>
                 )) : null}
             </select>
+            {!isViewer && (
             <button
               className="btn-primary btn-sm"
               onClick={() => {
@@ -1316,6 +1330,7 @@ export default function EquipmentManagement() {
               <Plus className="h-3.5 w-3.5" />
               Add Equipment
             </button>
+            )}
           </div>
         </div>
 
@@ -1544,7 +1559,7 @@ export default function EquipmentManagement() {
                     )}
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    {!modalEditing && (
+                    {!modalEditing && !isViewer && (
                       <>
                         {equipmentActiveCard ? (
                           <button
@@ -1895,7 +1910,7 @@ export default function EquipmentManagement() {
                       <Cpu className="h-4 w-4 text-gray-500" />
                       Components ({modalComponents.length})
                     </h3>
-                    <button
+                    {!isViewer && <button
                       className="btn-secondary btn-sm"
                       onClick={() => {
                         setModalCompForm({ ...EMPTY_COMP_FORM, equipment_id: detailsModal!.id })
@@ -1904,7 +1919,7 @@ export default function EquipmentManagement() {
                       }}
                     >
                       <Plus className="h-3.5 w-3.5" /> Add
-                    </button>
+                    </button>}
                   </div>
 
                   {addingModalComp && (
@@ -2058,7 +2073,7 @@ export default function EquipmentManagement() {
                                     </span>
                                   </td>
                                   <td>
-                                    <div className="flex items-center gap-1">
+                                    {!isViewer && <div className="flex items-center gap-1">
                                       <button
                                         onClick={() => {
                                           setEditingModalComp(comp)
@@ -2081,7 +2096,7 @@ export default function EquipmentManagement() {
                                         onClick={() => handleDeleteComponent(comp.id, () => detailsModal?.id && loadModalComponents(detailsModal.id))}
                                         className="text-gray-400 hover:text-red-600"
                                       ><Trash2 className="h-3.5 w-3.5" /></button>
-                                    </div>
+                                    </div>}
                                   </td>
                                 </>
                               )}
@@ -2213,7 +2228,7 @@ export default function EquipmentManagement() {
                 )}
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
-                {!componentModalEditing && (
+                {!componentModalEditing && !isViewer && (
                   <>
                     {componentActiveCard ? (
                       <button

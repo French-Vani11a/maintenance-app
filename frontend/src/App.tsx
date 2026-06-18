@@ -37,7 +37,14 @@ export default function App() {
             <Route path="equipment" element={<EquipmentManagement />} />
             <Route path="service-now" element={<ServiceNow />} />
             <Route path="service-dashboard" element={<ServiceDashboard />} />
-            <Route path="import" element={<ImportPage />} />
+            <Route
+              path="import"
+              element={
+                <ProtectedRoute noViewer>
+                  <ImportPage />
+                </ProtectedRoute>
+              }
+            />
             <Route path="reports" element={<Reports />} />
             <Route
               path="change-password"
