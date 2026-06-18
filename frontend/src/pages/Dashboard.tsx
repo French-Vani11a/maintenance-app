@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import { useNavigate } from 'react-router-dom'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 import {
   AlertTriangle,
   CheckCircle,
   Clock,
   ChevronLeft,
   ChevronRight,
+  Download,
   TrendingUp,
   Wrench,
   X,
@@ -88,6 +91,58 @@ export default function Dashboard() {
   const [equipRecordsPage, setEquipRecordsPage] = useState(0)
   const [equipRecordsLoading, setEquipRecordsLoading] = useState(false)
   const [equipRecordsError, setEquipRecordsError] = useState('')
+  const [pdfDownloading, setPdfDownloading] = useState(false)
+
+  async function downloadEquipRecordsPdf() {
+    if (!equipModal) return
+    setPdfDownloading(true)
+    try {
+      const allRes = await getRecords({ equipment_id: equipModal.id, skip: 0, limit: 1000 })
+
+      const logoRes = await fetch('/logo-new.png')
+      const logoBlob = await logoRes.blob()
+      const logoBase64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.readAsDataURL(logoBlob)
+      })
+
+      const doc = new jsPDF()
+
+      // Logo — 832x300 ratio ≈ 2.77:1, render at 60x22mm
+      doc.addImage(logoBase64, 'PNG', 14, 10, 60, 22)
+
+      doc.setFontSize(13)
+      doc.setTextColor(40)
+      doc.text(`Maintenance Records — ${equipModal.name}`, 14, 42)
+
+      doc.setFontSize(9)
+      doc.setTextColor(120)
+      doc.text(`Generated: ${format(new Date(), 'd MMM yyyy')}  ·  Total records: ${allRes.total}`, 14, 49)
+
+      autoTable(doc, {
+        startY: 55,
+        head: [['Date', 'MR No.', 'Issue Description', 'Artisan', 'Downtime', 'Status']],
+        body: allRes.records.map((r) => [
+          r.record_date,
+          r.mr_no || '—',
+          r.issue_description || '—',
+          r.artisan_name || '—',
+          r.downtime_minutes > 0 ? `${r.downtime_minutes} min` : '—',
+          r.status,
+        ]),
+        styles: { fontSize: 8, cellPadding: 3 },
+        headStyles: { fillColor: [0, 180, 80], textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [245, 255, 250] },
+      })
+
+      doc.save(`${equipModal.name} - Maintenance Records.pdf`)
+    } catch {
+      // silently fail — user still has the table on screen
+    } finally {
+      setPdfDownloading(false)
+    }
+  }
 
   useEffect(() => {
     if (!equipModal) { setEquipRecords([]); setEquipRecordsTotal(0); return }
@@ -465,12 +520,22 @@ export default function Dashboard() {
                 <h2 className="text-lg font-semibold text-gray-800">{equipModal.name}</h2>
                 <p className="text-xs text-gray-500 mt-0.5">Maintenance records — click a row to open it</p>
               </div>
-              <button
-                onClick={() => setEquipModal(null)}
-                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
-              >
-                <X className="h-5 w-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={downloadEquipRecordsPdf}
+                  disabled={pdfDownloading || equipRecordsLoading}
+                  className="btn-primary btn-sm flex items-center gap-1.5"
+                >
+                  {pdfDownloading ? <LoadingSpinner size="sm" /> : <Download className="h-3.5 w-3.5" />}
+                  {pdfDownloading ? 'Generating…' : 'Download PDF'}
+                </button>
+                <button
+                  onClick={() => setEquipModal(null)}
+                  className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
             </div>
 
             {equipRecordsLoading ? (

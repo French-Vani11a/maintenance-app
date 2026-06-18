@@ -93,8 +93,8 @@ function NavGroup({
         onClick={onToggle}
         className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-colors rounded-lg ${
           isChildActive
-            ? 'text-white bg-gray-800'
-            : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+            ? 'text-gray-900 bg-gray-200'
+            : 'text-gray-600 hover:bg-gray-200 hover:text-gray-900'
         }`}
       >
         <Icon className="h-4 w-4 shrink-0" />
@@ -107,7 +107,7 @@ function NavGroup({
       </button>
 
       {isOpen && (
-        <div className="mt-0.5 flex flex-col border-l-2 border-gray-700 ml-4">
+        <div className="mt-0.5 flex flex-col border-l-2 border-gray-300 ml-4">
           {group.items.map(({ to, icon: ItemIcon, label }) => (
             <NavLink
               key={to}
@@ -115,10 +115,11 @@ function NavGroup({
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2.5 -ml-0.5 text-sm font-medium border-l-2 transition-colors ${
                   isActive
-                    ? 'border-blue-500 text-blue-400 bg-blue-500/10'
-                    : 'border-transparent text-gray-400 hover:text-white hover:bg-gray-800 hover:border-gray-500'
+                    ? 'border-transparent text-white rounded-lg'
+                    : 'border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-200 hover:border-gray-400'
                 }`
               }
+              style={({ isActive }) => isActive ? { backgroundColor: '#00b450' } : {}}
             >
               <ItemIcon className="h-3.5 w-3.5 shrink-0" />
               {label}
@@ -145,14 +146,10 @@ export default function Sidebar() {
   const visibleGroups = groups.filter((g) => !g.adminOnly || user?.role === 'admin')
 
   return (
-    <aside className="flex h-screen w-60 flex-col bg-gray-900 text-gray-100 fixed left-0 top-0 z-20">
+    <aside className="flex h-screen w-60 flex-col bg-gray-100 text-gray-800 fixed left-0 top-0 z-20 border-r border-gray-200">
       {/* Logo */}
-      <div className="flex items-center gap-3 px-5 py-5 border-b border-gray-800">
-        <img src="/logo-new.png" alt="Logo" className="h-9 w-9 rounded-lg" />
-        <div>
-          <p className="text-sm font-bold leading-tight">Maintenance</p>
-          <p className="text-xs text-gray-400 leading-tight">Management System</p>
-        </div>
+      <div className="flex items-center justify-center" style={{ height: '55px' }}>
+        <img src="/logo-new.png" alt="Logo" style={{ height: '55px', width: 'auto' }} />
       </div>
 
       {/* Navigation */}
@@ -173,10 +170,11 @@ export default function Sidebar() {
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 isActive
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                  ? 'text-white'
+                  : 'text-gray-600 hover:bg-gray-200 hover:text-gray-900'
               }`
             }
+            style={({ isActive }) => isActive ? { backgroundColor: '#00b450' } : {}}
           >
             <Icon className="h-4 w-4 shrink-0" />
             {label}
@@ -191,10 +189,11 @@ export default function Sidebar() {
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   isActive
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                    ? 'text-white'
+                    : 'text-gray-600 hover:bg-gray-200 hover:text-gray-900'
                 }`
               }
+              style={({ isActive }) => isActive ? { backgroundColor: '#00b450' } : {}}
             >
               <Icon className="h-4 w-4 shrink-0" />
               {label}
@@ -203,16 +202,16 @@ export default function Sidebar() {
       </nav>
 
       {/* User footer */}
-      <div className="border-t border-gray-800 px-4 py-4">
+      <div className="px-4 py-4">
         <div className="flex items-center justify-between">
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-white">{user?.full_name}</p>
-            <p className="truncate text-xs text-gray-400 capitalize">{user?.role}</p>
+            <p className="truncate text-sm font-medium text-gray-900">{user?.full_name}</p>
+            <p className="truncate text-xs text-gray-500 capitalize">{user?.role}</p>
           </div>
           <button
             onClick={logout}
             title="Logout"
-            className="ml-2 rounded-lg p-1.5 text-gray-400 hover:bg-gray-800 hover:text-white transition-colors"
+            className="ml-2 rounded-lg p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-900 transition-colors"
           >
             <LogOut className="h-4 w-4" />
           </button>

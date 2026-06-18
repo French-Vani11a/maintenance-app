@@ -25,12 +25,12 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800">
+    <div className="flex min-h-screen items-center justify-center bg-gray-100">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <img src="/logo-new.png" alt="Logo" className="mx-auto mb-4 h-14 w-14 rounded-2xl" />
-          <h1 className="text-2xl font-bold text-white">Maintenance System</h1>
-          <p className="mt-1 text-sm text-gray-400">Sign in to continue</p>
+          <img src="/logo-new.png" alt="Logo" className="mx-auto mb-4 w-96 h-auto" />
+          <h1 className="text-2xl font-bold text-gray-900">Maintenance System</h1>
+          <p className="mt-1 text-sm text-gray-500">Sign in to continue</p>
         </div>
 
         <form
