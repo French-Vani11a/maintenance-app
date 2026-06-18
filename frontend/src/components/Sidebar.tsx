@@ -148,7 +148,7 @@ export default function Sidebar() {
   return (
     <aside className="flex h-screen w-60 flex-col bg-gray-100 text-gray-800 fixed left-0 top-0 z-20 border-r border-gray-200">
       {/* Logo */}
-      <div className="flex items-center justify-center" style={{ height: '55px' }}>
+      <div className="flex items-center justify-center" style={{ height: '55px', paddingTop: '12px' }}>
         <img src="/logo-new.png" alt="Logo" style={{ height: '55px', width: 'auto' }} />
       </div>
 
