@@ -284,7 +284,7 @@ def complete_job_card(
         equipment_id=jc.equipment_id,
         service_date=data.service_date,
         service_type=jc.service_type,
-        performed_by=data.performed_by,
+        performed_by=data.performed_by or jc.assigned_artisan,
         notes=data.completion_notes,
         work_done=data.work_done,
         parts_used=data.parts_used,
