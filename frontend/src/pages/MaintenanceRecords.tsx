@@ -23,6 +23,11 @@ function fmtMins(mins: number | null) {
   return h > 0 ? `${h}h ${m}m` : `${m}m`
 }
 
+function fmtHrs(hrs: number | null) {
+  if (hrs == null || hrs === 0) return '—'
+  return `${hrs} hrs`
+}
+
 function calcDowntime(arrival: string, finishing: string): number | null {
   const parse = (t: string) => { const [h, m] = t.split(':').map(Number); return isNaN(h) ? null : h * 60 + m }
   const a = parse(arrival); const f = parse(finishing)
@@ -43,13 +48,15 @@ interface ModalForm {
   record_date: string; time_reported: string; reporter_name: string; reported_to: string
   artisan_name: string; mr_no: string; plant_id: string; equipment_group_id: string
   equipment_id: string; issue_description: string; arrival_time: string; finishing_time: string
-  downtime_minutes: string; run_time_minutes: string; remarks: string; status: string; record_type: string
+  downtime_minutes: string; run_time_minutes: string; prev_hr_meter: string; curr_hr_meter: string
+  remarks: string; status: string; record_type: string
 }
 
 const EMPTY_MODAL_FORM: ModalForm = {
   record_date: '', time_reported: '', reporter_name: '', reported_to: '', artisan_name: '',
   mr_no: '', plant_id: '', equipment_group_id: '', equipment_id: '', issue_description: '',
-  arrival_time: '', finishing_time: '', downtime_minutes: '0', run_time_minutes: '', remarks: '', status: 'open', record_type: 'regular',
+  arrival_time: '', finishing_time: '', downtime_minutes: '0', run_time_minutes: '',
+  prev_hr_meter: '', curr_hr_meter: '', remarks: '', status: 'open', record_type: 'regular',
 }
 
 export default function MaintenanceRecords() {
@@ -81,6 +88,7 @@ export default function MaintenanceRecords() {
   const [selectedRecord, setSelectedRecord] = useState<MaintenanceRecord | null>(null)
   const [modalEditing, setModalEditing] = useState(false)
   const [modalForm, setModalForm] = useState<ModalForm>({ ...EMPTY_MODAL_FORM })
+  const [modalIsSlicer, setModalIsSlicer] = useState(false)
   const [modalSaving, setModalSaving] = useState(false)
   const [modalError, setModalError] = useState('')
 
@@ -113,7 +121,7 @@ export default function MaintenanceRecords() {
       const next = { ...f, [field]: value }
       if (field === 'plant_id') { next.equipment_group_id = ''; next.equipment_id = '' }
       if (field === 'equipment_group_id') { next.equipment_id = '' }
-      if ((field === 'arrival_time' || field === 'finishing_time')) {
+      if (field === 'arrival_time' || field === 'finishing_time') {
         const dt = calcDowntime(
           field === 'arrival_time' ? value : f.arrival_time,
           field === 'finishing_time' ? value : f.finishing_time
@@ -124,10 +132,20 @@ export default function MaintenanceRecords() {
     })
   }
 
+  useEffect(() => {
+    if (!modalIsSlicer || !modalForm.prev_hr_meter || !modalForm.curr_hr_meter) return
+    const prev = parseFloat(modalForm.prev_hr_meter)
+    const curr = parseFloat(modalForm.curr_hr_meter)
+    if (!isNaN(prev) && !isNaN(curr) && curr >= prev) {
+      setModalForm(f => ({ ...f, run_time_minutes: (curr - prev).toFixed(2) }))
+    }
+  }, [modalIsSlicer, modalForm.prev_hr_meter, modalForm.curr_hr_meter])
+
   function openModal(record: MaintenanceRecord) {
     setSelectedRecord(record)
     setModalEditing(false)
     setModalError('')
+    setModalIsSlicer(record.is_slicer ?? false)
     setModalForm({
       record_date: record.record_date ? record.record_date.slice(0, 10) : '',
       time_reported: record.time_reported || '',
@@ -143,6 +161,8 @@ export default function MaintenanceRecords() {
       finishing_time: record.finishing_time || '',
       downtime_minutes: String(record.downtime_minutes ?? 0),
       run_time_minutes: record.run_time_minutes != null ? String(record.run_time_minutes) : '',
+      prev_hr_meter: record.prev_hr_meter != null ? String(record.prev_hr_meter) : '',
+      curr_hr_meter: record.curr_hr_meter != null ? String(record.curr_hr_meter) : '',
       remarks: record.remarks || '',
       status: record.status || 'open',
       record_type: record.record_type || 'regular',
@@ -175,6 +195,9 @@ export default function MaintenanceRecords() {
         finishing_time: modalForm.finishing_time || null,
         downtime_minutes: Number(modalForm.downtime_minutes) || 0,
         run_time_minutes: modalForm.run_time_minutes ? Number(modalForm.run_time_minutes) : null,
+        is_slicer: modalIsSlicer,
+        prev_hr_meter: modalIsSlicer && modalForm.prev_hr_meter ? parseFloat(modalForm.prev_hr_meter) : null,
+        curr_hr_meter: modalIsSlicer && modalForm.curr_hr_meter ? parseFloat(modalForm.curr_hr_meter) : null,
         remarks: modalForm.remarks || null,
         status: modalForm.status,
         record_type: modalForm.record_type,
@@ -293,7 +316,7 @@ export default function MaintenanceRecords() {
                   <td className="max-w-[200px] truncate" title={r.issue_description || undefined}>{r.issue_description || '—'}</td>
                   <td>{r.artisan_name || '—'}</td>
                   <td className="text-orange-600 font-medium">{fmtMins(r.downtime_minutes)}</td>
-                  <td className="text-blue-600 font-medium">{fmtMins(r.run_time_minutes)}</td>
+                  <td className="text-blue-600 font-medium">{fmtHrs(r.run_time_minutes)}</td>
                   <td>
                     <span className={`badge ${r.record_type === 'breakdown' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-600'}`}>
                       {r.record_type === 'breakdown' ? 'Breakdown' : 'Regular'}
@@ -375,6 +398,9 @@ export default function MaintenanceRecords() {
                   <span className={`badge ${selectedRecord.record_type === 'breakdown' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-600'}`}>
                     {selectedRecord.record_type === 'breakdown' ? 'Breakdown' : 'Regular'}
                   </span>
+                  {selectedRecord.is_slicer && (
+                    <span className="badge bg-blue-100 text-blue-800">Slicer</span>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-3">
@@ -390,7 +416,13 @@ export default function MaintenanceRecords() {
                   <InfoField label="Arrival Time" value={selectedRecord.arrival_time} />
                   <InfoField label="Finishing Time" value={selectedRecord.finishing_time} />
                   <InfoField label="Downtime" value={fmtMins(selectedRecord.downtime_minutes)} />
-                  <InfoField label="Run Time" value={fmtMins(selectedRecord.run_time_minutes)} />
+                  <InfoField label="Run Time" value={fmtHrs(selectedRecord.run_time_minutes)} />
+                  {selectedRecord.is_slicer && (
+                    <>
+                      <InfoField label="Previous Hr Meter" value={selectedRecord.prev_hr_meter != null ? String(selectedRecord.prev_hr_meter) : null} />
+                      <InfoField label="Current Hr Meter" value={selectedRecord.curr_hr_meter != null ? String(selectedRecord.curr_hr_meter) : null} />
+                    </>
+                  )}
                   <InfoField label="Created By" value={selectedRecord.created_by_user_name} />
                 </div>
 
@@ -495,9 +527,34 @@ export default function MaintenanceRecords() {
                     <input type="number" min="0" className="input" value={modalForm.downtime_minutes}
                       onChange={e => setM('downtime_minutes', e.target.value)} />
                   </div>
+                  <div className="space-y-1 flex items-end">
+                    <label className="flex items-center gap-2 cursor-pointer select-none h-10">
+                      <input
+                        type="checkbox"
+                        checked={modalIsSlicer}
+                        onChange={e => setModalIsSlicer(e.target.checked)}
+                        className="h-4 w-4 rounded accent-blue-600"
+                      />
+                      <span className="text-sm font-medium text-gray-700">Is Slicer</span>
+                    </label>
+                  </div>
+                  {modalIsSlicer && (
+                    <>
+                      <div className="space-y-1">
+                        <label className="label">Previous Hr Meter</label>
+                        <input type="number" min="0" step="0.01" className="input" placeholder="e.g. 1000.00"
+                          value={modalForm.prev_hr_meter} onChange={e => setM('prev_hr_meter', e.target.value)} />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="label">Current Hr Meter</label>
+                        <input type="number" min="0" step="0.01" className="input" placeholder="e.g. 1002.50"
+                          value={modalForm.curr_hr_meter} onChange={e => setM('curr_hr_meter', e.target.value)} />
+                      </div>
+                    </>
+                  )}
                   <div className="space-y-1">
-                    <label className="label">Run Time (min)</label>
-                    <input type="number" min="0" className="input" value={modalForm.run_time_minutes}
+                    <label className="label">Run Time (hours)</label>
+                    <input type="number" min="0" step="0.01" className="input" value={modalForm.run_time_minutes}
                       onChange={e => setM('run_time_minutes', e.target.value)} />
                   </div>
                   <div className="sm:col-span-3 space-y-1">

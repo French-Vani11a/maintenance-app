@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -22,7 +22,10 @@ class MaintenanceRecord(Base):
     arrival_time = Column(String(20), nullable=True)
     finishing_time = Column(String(20), nullable=True)
     downtime_minutes = Column(Integer, nullable=True, default=0)
-    run_time_minutes = Column(Integer, nullable=True)
+    run_time_minutes = Column(Float, nullable=True)
+    is_slicer = Column(Boolean, nullable=False, default=False)
+    prev_hr_meter = Column(Float, nullable=True)
+    curr_hr_meter = Column(Float, nullable=True)
     remarks = Column(Text, nullable=True)
     status = Column(String(30), default="open", nullable=False, index=True)
     record_type = Column(String(20), default="regular", nullable=False, index=True)

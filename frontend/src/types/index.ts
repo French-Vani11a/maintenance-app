@@ -198,6 +198,9 @@ export interface MaintenanceRecord {
   finishing_time: string | null
   downtime_minutes: number
   run_time_minutes: number | null
+  is_slicer: boolean
+  prev_hr_meter: number | null
+  curr_hr_meter: number | null
   remarks: string | null
   status: string
   record_type: string

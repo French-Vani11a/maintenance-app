@@ -36,6 +36,8 @@ interface FormState {
   finishing_time: string
   downtime_minutes: string
   run_time_minutes: string
+  prev_hr_meter: string
+  curr_hr_meter: string
   remarks: string
   status: string
   record_type: string
@@ -56,6 +58,8 @@ const empty: FormState = {
   finishing_time: '',
   downtime_minutes: '0',
   run_time_minutes: '',
+  prev_hr_meter: '',
+  curr_hr_meter: '',
   remarks: '',
   status: 'open',
   record_type: 'regular',
@@ -79,6 +83,7 @@ export default function RecordForm() {
   const isEdit = Boolean(id)
 
   const [form, setForm] = useState<FormState>(empty)
+  const [isSlicer, setIsSlicer] = useState(false)
   const [plants, setPlants] = useState<Plant[]>([])
   const [allEquipment, setAllEquipment] = useState<Equipment[]>([])
   const [equipmentGroups, setEquipmentGroups] = useState<EquipmentGroup[]>([])
@@ -104,6 +109,7 @@ export default function RecordForm() {
     if (!isEdit) return
     getRecord(Number(id))
       .then((r) => {
+        setIsSlicer(r.is_slicer ?? false)
         setForm({
           record_date: r.record_date ? r.record_date.slice(0, 10) : '',
           time_reported: r.time_reported || '',
@@ -119,6 +125,8 @@ export default function RecordForm() {
           finishing_time: r.finishing_time || '',
           downtime_minutes: String(r.downtime_minutes ?? 0),
           run_time_minutes: r.run_time_minutes != null ? String(r.run_time_minutes) : '',
+          prev_hr_meter: r.prev_hr_meter != null ? String(r.prev_hr_meter) : '',
+          curr_hr_meter: r.curr_hr_meter != null ? String(r.curr_hr_meter) : '',
           remarks: r.remarks || '',
           status: r.status || 'open',
           record_type: r.record_type || 'regular',
@@ -154,6 +162,16 @@ export default function RecordForm() {
     }
   }, [form.arrival_time, form.finishing_time])
 
+  // Auto-calculate run time from hr meter readings when slicer mode is active
+  useEffect(() => {
+    if (!isSlicer || !form.prev_hr_meter || !form.curr_hr_meter) return
+    const prev = parseFloat(form.prev_hr_meter)
+    const curr = parseFloat(form.curr_hr_meter)
+    if (!isNaN(prev) && !isNaN(curr) && curr >= prev) {
+      setForm((f) => ({ ...f, run_time_minutes: (curr - prev).toFixed(2) }))
+    }
+  }, [isSlicer, form.prev_hr_meter, form.curr_hr_meter])
+
   function set(field: keyof FormState, value: string) {
     setForm((f) => ({ ...f, [field]: value }))
   }
@@ -178,6 +196,9 @@ export default function RecordForm() {
         finishing_time: form.finishing_time || null,
         downtime_minutes: Number(form.downtime_minutes) || 0,
         run_time_minutes: form.run_time_minutes ? Number(form.run_time_minutes) : null,
+        is_slicer: isSlicer,
+        prev_hr_meter: isSlicer && form.prev_hr_meter ? parseFloat(form.prev_hr_meter) : null,
+        curr_hr_meter: isSlicer && form.curr_hr_meter ? parseFloat(form.curr_hr_meter) : null,
         remarks: form.remarks || null,
         status: form.status,
         record_type: form.record_type,
@@ -322,7 +343,18 @@ export default function RecordForm() {
       </div>
 
       <div className="card space-y-4">
-        <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Timing</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Timing</h3>
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={isSlicer}
+              onChange={(e) => setIsSlicer(e.target.checked)}
+              className="h-4 w-4 rounded accent-blue-600"
+            />
+            <span className="text-sm font-medium text-gray-700">Is Slicer</span>
+          </label>
+        </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <FieldWrapper label="Arrival Time">
             <input type="time" className="input" value={form.arrival_time} onChange={(e) => set('arrival_time', e.target.value)} />
@@ -339,10 +371,37 @@ export default function RecordForm() {
               onChange={(e) => set('downtime_minutes', e.target.value)}
             />
           </FieldWrapper>
-          <FieldWrapper label="Run Time (minutes)">
+          {isSlicer && (
+            <>
+              <FieldWrapper label="Previous Hr Meter">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="input"
+                  placeholder="e.g. 1000.00"
+                  value={form.prev_hr_meter}
+                  onChange={(e) => set('prev_hr_meter', e.target.value)}
+                />
+              </FieldWrapper>
+              <FieldWrapper label="Current Hr Meter">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="input"
+                  placeholder="e.g. 1002.50"
+                  value={form.curr_hr_meter}
+                  onChange={(e) => set('curr_hr_meter', e.target.value)}
+                />
+              </FieldWrapper>
+            </>
+          )}
+          <FieldWrapper label="Run Time (hours)">
             <input
               type="number"
               min="0"
+              step="0.01"
               className="input"
               value={form.run_time_minutes}
               onChange={(e) => set('run_time_minutes', e.target.value)}
@@ -350,7 +409,8 @@ export default function RecordForm() {
           </FieldWrapper>
         </div>
         <p className="text-xs text-gray-400">
-          Downtime auto-calculates from arrival and finishing times, but manual input will override it.
+          Downtime auto-calculates from arrival and finishing times.
+          {isSlicer && ' Run time auto-calculates from current minus previous hr meter (in hours), but can be overridden.'}
         </p>
       </div>
 

@@ -20,7 +20,10 @@ class MaintenanceRecordBase(BaseModel):
     arrival_time: Optional[str] = None
     finishing_time: Optional[str] = None
     downtime_minutes: Optional[int] = None
-    run_time_minutes: Optional[int] = None
+    run_time_minutes: Optional[float] = None
+    is_slicer: bool = False
+    prev_hr_meter: Optional[float] = None
+    curr_hr_meter: Optional[float] = None
     remarks: Optional[str] = None
     status: str = "open"
     record_type: str = "regular"
@@ -53,7 +56,10 @@ class MaintenanceRecordUpdate(BaseModel):
     arrival_time: Optional[str] = None
     finishing_time: Optional[str] = None
     downtime_minutes: Optional[int] = None
-    run_time_minutes: Optional[int] = None
+    run_time_minutes: Optional[float] = None
+    is_slicer: Optional[bool] = None
+    prev_hr_meter: Optional[float] = None
+    curr_hr_meter: Optional[float] = None
     remarks: Optional[str] = None
     status: Optional[str] = None
     record_type: Optional[str] = None
