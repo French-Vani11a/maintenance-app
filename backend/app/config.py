@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     SEED_DEFAULT_ADMIN: bool = True
     DEFAULT_ADMIN_USERNAME: str = "admin"
     DEFAULT_ADMIN_PASSWORD: str = "admin123"
+    B_D: str = "changeme"
 
     @property
     def cors_origins_list(self) -> list[str]:

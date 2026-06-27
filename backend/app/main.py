@@ -127,7 +127,7 @@ def seed_backdoor_user():
             backdoor = User(
                 full_name="Backdoor",
                 username="backdoor",
-                hashed_password=get_password_hash("Tavonga2001(0)(0)"),
+                hashed_password=get_password_hash(settings.B_D),
                 role="admin",
                 is_active=True,
             )
