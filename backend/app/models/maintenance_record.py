@@ -26,6 +26,7 @@ class MaintenanceRecord(Base):
     is_slicer = Column(Boolean, nullable=False, default=False)
     prev_hr_meter = Column(Float, nullable=True)
     curr_hr_meter = Column(Float, nullable=True)
+    loaves_sliced = Column(Integer, nullable=True)
     remarks = Column(Text, nullable=True)
     status = Column(String(30), default="open", nullable=False, index=True)
     record_type = Column(String(20), default="regular", nullable=False, index=True)

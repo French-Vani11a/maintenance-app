@@ -24,6 +24,7 @@ class MaintenanceRecordBase(BaseModel):
     is_slicer: bool = False
     prev_hr_meter: Optional[float] = None
     curr_hr_meter: Optional[float] = None
+    loaves_sliced: Optional[int] = None
     remarks: Optional[str] = None
     status: str = "open"
     record_type: str = "regular"
@@ -60,6 +61,7 @@ class MaintenanceRecordUpdate(BaseModel):
     is_slicer: Optional[bool] = None
     prev_hr_meter: Optional[float] = None
     curr_hr_meter: Optional[float] = None
+    loaves_sliced: Optional[int] = None
     remarks: Optional[str] = None
     status: Optional[str] = None
     record_type: Optional[str] = None

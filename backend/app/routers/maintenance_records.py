@@ -67,6 +67,7 @@ def _enrich(record: MaintenanceRecord) -> dict:
         "is_slicer": record.is_slicer,
         "prev_hr_meter": record.prev_hr_meter,
         "curr_hr_meter": record.curr_hr_meter,
+        "loaves_sliced": record.loaves_sliced,
         "remarks": record.remarks,
         "status": record.status,
         "record_type": record.record_type,

@@ -48,7 +48,7 @@ interface ModalForm {
   record_date: string; time_reported: string; reporter_name: string; reported_to: string
   artisan_name: string; mr_no: string; plant_id: string; equipment_group_id: string
   equipment_id: string; issue_description: string; arrival_time: string; finishing_time: string
-  downtime_minutes: string; run_time_minutes: string; prev_hr_meter: string; curr_hr_meter: string
+  downtime_minutes: string; run_time_minutes: string; prev_hr_meter: string; curr_hr_meter: string; loaves_sliced: string
   remarks: string; status: string; record_type: string
 }
 
@@ -56,7 +56,7 @@ const EMPTY_MODAL_FORM: ModalForm = {
   record_date: '', time_reported: '', reporter_name: '', reported_to: '', artisan_name: '',
   mr_no: '', plant_id: '', equipment_group_id: '', equipment_id: '', issue_description: '',
   arrival_time: '', finishing_time: '', downtime_minutes: '0', run_time_minutes: '',
-  prev_hr_meter: '', curr_hr_meter: '', remarks: '', status: 'open', record_type: 'regular',
+  prev_hr_meter: '', curr_hr_meter: '', loaves_sliced: '', remarks: '', status: 'open', record_type: 'regular',
 }
 
 export default function MaintenanceRecords() {
@@ -163,6 +163,7 @@ export default function MaintenanceRecords() {
       run_time_minutes: record.run_time_minutes != null ? String(record.run_time_minutes) : '',
       prev_hr_meter: record.prev_hr_meter != null ? String(record.prev_hr_meter) : '',
       curr_hr_meter: record.curr_hr_meter != null ? String(record.curr_hr_meter) : '',
+      loaves_sliced: record.loaves_sliced != null ? String(record.loaves_sliced) : '',
       remarks: record.remarks || '',
       status: record.status || 'open',
       record_type: record.record_type || 'regular',
@@ -198,6 +199,7 @@ export default function MaintenanceRecords() {
         is_slicer: modalIsSlicer,
         prev_hr_meter: modalIsSlicer && modalForm.prev_hr_meter ? parseFloat(modalForm.prev_hr_meter) : null,
         curr_hr_meter: modalIsSlicer && modalForm.curr_hr_meter ? parseFloat(modalForm.curr_hr_meter) : null,
+        loaves_sliced: modalIsSlicer && modalForm.loaves_sliced ? parseInt(modalForm.loaves_sliced) : null,
         remarks: modalForm.remarks || null,
         status: modalForm.status,
         record_type: modalForm.record_type,
@@ -421,6 +423,7 @@ export default function MaintenanceRecords() {
                     <>
                       <InfoField label="Previous Hr Meter" value={selectedRecord.prev_hr_meter != null ? String(selectedRecord.prev_hr_meter) : null} />
                       <InfoField label="Current Hr Meter" value={selectedRecord.curr_hr_meter != null ? String(selectedRecord.curr_hr_meter) : null} />
+                      <InfoField label="Loaves Sliced" value={selectedRecord.loaves_sliced != null ? String(selectedRecord.loaves_sliced) : null} />
                     </>
                   )}
                   <InfoField label="Created By" value={selectedRecord.created_by_user_name} />
@@ -549,6 +552,11 @@ export default function MaintenanceRecords() {
                         <label className="label">Current Hr Meter</label>
                         <input type="number" min="0" step="0.01" className="input" placeholder="e.g. 1002.50"
                           value={modalForm.curr_hr_meter} onChange={e => setM('curr_hr_meter', e.target.value)} />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="label">Loaves Sliced</label>
+                        <input type="number" min="0" className="input" placeholder="e.g. 5000"
+                          value={modalForm.loaves_sliced} onChange={e => setM('loaves_sliced', e.target.value)} />
                       </div>
                     </>
                   )}

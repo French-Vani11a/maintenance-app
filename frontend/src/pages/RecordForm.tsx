@@ -38,6 +38,7 @@ interface FormState {
   run_time_minutes: string
   prev_hr_meter: string
   curr_hr_meter: string
+  loaves_sliced: string
   remarks: string
   status: string
   record_type: string
@@ -60,6 +61,7 @@ const empty: FormState = {
   run_time_minutes: '',
   prev_hr_meter: '',
   curr_hr_meter: '',
+  loaves_sliced: '',
   remarks: '',
   status: 'open',
   record_type: 'regular',
@@ -127,6 +129,7 @@ export default function RecordForm() {
           run_time_minutes: r.run_time_minutes != null ? String(r.run_time_minutes) : '',
           prev_hr_meter: r.prev_hr_meter != null ? String(r.prev_hr_meter) : '',
           curr_hr_meter: r.curr_hr_meter != null ? String(r.curr_hr_meter) : '',
+          loaves_sliced: r.loaves_sliced != null ? String(r.loaves_sliced) : '',
           remarks: r.remarks || '',
           status: r.status || 'open',
           record_type: r.record_type || 'regular',
@@ -199,6 +202,7 @@ export default function RecordForm() {
         is_slicer: isSlicer,
         prev_hr_meter: isSlicer && form.prev_hr_meter ? parseFloat(form.prev_hr_meter) : null,
         curr_hr_meter: isSlicer && form.curr_hr_meter ? parseFloat(form.curr_hr_meter) : null,
+        loaves_sliced: isSlicer && form.loaves_sliced ? parseInt(form.loaves_sliced) : null,
         remarks: form.remarks || null,
         status: form.status,
         record_type: form.record_type,
@@ -393,6 +397,16 @@ export default function RecordForm() {
                   placeholder="e.g. 1002.50"
                   value={form.curr_hr_meter}
                   onChange={(e) => set('curr_hr_meter', e.target.value)}
+                />
+              </FieldWrapper>
+              <FieldWrapper label="Loaves Sliced">
+                <input
+                  type="number"
+                  min="0"
+                  className="input"
+                  placeholder="e.g. 5000"
+                  value={form.loaves_sliced}
+                  onChange={(e) => set('loaves_sliced', e.target.value)}
                 />
               </FieldWrapper>
             </>

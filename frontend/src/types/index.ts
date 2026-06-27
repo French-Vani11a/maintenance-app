@@ -201,6 +201,7 @@ export interface MaintenanceRecord {
   is_slicer: boolean
   prev_hr_meter: number | null
   curr_hr_meter: number | null
+  loaves_sliced: number | null
   remarks: string | null
   status: string
   record_type: string
