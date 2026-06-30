@@ -457,6 +457,17 @@ export async function getDowntimeByEquipmentForPlant(
   return res.data
 }
 
+export async function getEquipmentFaultsByGroup(
+  group_id: number,
+  date_from?: string,
+  date_to?: string
+): Promise<Array<{ id: number; name: string; fault_count: number; total_downtime: number }>> {
+  const res = await api.get('/dashboard/equipment-faults-by-group', {
+    params: { group_id, date_from, date_to },
+  })
+  return res.data
+}
+
 // ── Import ───────────────────────────────────────────────────────────────────
 
 export async function downloadImportTemplate(): Promise<void> {

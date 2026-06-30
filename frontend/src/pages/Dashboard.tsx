@@ -27,7 +27,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { getDashboardStatsByDateRange, getDowntimeByEquipmentForPlant, getRecords } from '../services/api'
+import { getDashboardStatsByDateRange, getDowntimeByEquipmentForPlant, getEquipmentFaultsByGroup, getRecords } from '../services/api'
 import type { DashboardStats, DowntimeByEquipment, MaintenanceRecord } from '../types'
 import LoadingSpinner from '../components/LoadingSpinner'
 import LoginToastNotifications from '../components/LoginToastNotifications'
@@ -84,6 +84,11 @@ export default function Dashboard() {
   const [equipmentError, setEquipmentError] = useState('')
   const topDowntimePlants = (stats?.downtime_by_plant ?? []).slice(0, 10)
 
+  const [selectedGroup, setSelectedGroup] = useState<{ id: number; name: string } | null>(null)
+  const [groupEquipmentFaults, setGroupEquipmentFaults] = useState<Array<{ id: number; name: string; fault_count: number; total_downtime: number }>>([])
+  const [groupEquipmentLoading, setGroupEquipmentLoading] = useState(false)
+  const [groupEquipmentError, setGroupEquipmentError] = useState('')
+
   // Equipment records modal
   const [equipModal, setEquipModal] = useState<{ id: number; name: string } | null>(null)
   const [equipRecords, setEquipRecords] = useState<MaintenanceRecord[]>([])
@@ -92,6 +97,65 @@ export default function Dashboard() {
   const [equipRecordsLoading, setEquipRecordsLoading] = useState(false)
   const [equipRecordsError, setEquipRecordsError] = useState('')
   const [pdfDownloading, setPdfDownloading] = useState(false)
+
+  // Artisan records modal
+  const [artisanModal, setArtisanModal] = useState<string | null>(null)
+  const [artisanRecords, setArtisanRecords] = useState<MaintenanceRecord[]>([])
+  const [artisanRecordsTotal, setArtisanRecordsTotal] = useState(0)
+  const [artisanRecordsPage, setArtisanRecordsPage] = useState(0)
+  const [artisanRecordsLoading, setArtisanRecordsLoading] = useState(false)
+  const [artisanRecordsError, setArtisanRecordsError] = useState('')
+  const [artisanPdfDownloading, setArtisanPdfDownloading] = useState(false)
+
+  async function downloadArtisanRecordsPdf() {
+    if (!artisanModal) return
+    setArtisanPdfDownloading(true)
+    try {
+      const allRes = await getRecords({ artisan_name: artisanModal, skip: 0, limit: 1000 })
+
+      const logoRes = await fetch('/logo-new.png')
+      const logoBlob = await logoRes.blob()
+      const logoBase64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.readAsDataURL(logoBlob)
+      })
+
+      const doc = new jsPDF()
+
+      doc.addImage(logoBase64, 'PNG', 14, 10, 60, 22)
+
+      doc.setFontSize(13)
+      doc.setTextColor(40)
+      doc.text(`Maintenance Records — ${artisanModal}`, 14, 42)
+
+      doc.setFontSize(9)
+      doc.setTextColor(120)
+      doc.text(`Generated: ${format(new Date(), 'd MMM yyyy')}  ·  Total records: ${allRes.total}`, 14, 49)
+
+      autoTable(doc, {
+        startY: 55,
+        head: [['Date', 'MR No.', 'Issue Description', 'Equipment', 'Downtime', 'Status']],
+        body: allRes.records.map((r) => [
+          r.record_date,
+          r.mr_no || '—',
+          r.issue_description || '—',
+          r.equipment_name || '—',
+          r.downtime_minutes > 0 ? `${r.downtime_minutes} min` : '—',
+          r.status,
+        ]),
+        styles: { fontSize: 8, cellPadding: 3 },
+        headStyles: { fillColor: [34, 197, 94], textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [240, 253, 244] },
+      })
+
+      doc.save(`${artisanModal} - Maintenance Records.pdf`)
+    } catch {
+      // silently fail
+    } finally {
+      setArtisanPdfDownloading(false)
+    }
+  }
 
   async function downloadEquipRecordsPdf() {
     if (!equipModal) return
@@ -155,6 +219,16 @@ export default function Dashboard() {
   }, [equipModal, equipRecordsPage])
 
   useEffect(() => {
+    if (!artisanModal) { setArtisanRecords([]); setArtisanRecordsTotal(0); return }
+    setArtisanRecordsLoading(true)
+    setArtisanRecordsError('')
+    getRecords({ artisan_name: artisanModal, skip: artisanRecordsPage * RECORDS_PAGE_SIZE, limit: RECORDS_PAGE_SIZE })
+      .then((res) => { setArtisanRecords(res.records); setArtisanRecordsTotal(res.total) })
+      .catch(() => setArtisanRecordsError('Failed to load records'))
+      .finally(() => setArtisanRecordsLoading(false))
+  }, [artisanModal, artisanRecordsPage])
+
+  useEffect(() => {
     setLoading(true)
     setError('')
     getDashboardStatsByDateRange(dateFrom || undefined, dateTo || undefined)
@@ -190,6 +264,16 @@ export default function Dashboard() {
       .catch(() => setEquipmentError('Failed to load equipment downtime for selected plant'))
       .finally(() => setEquipmentLoading(false))
   }, [selectedPlant, dateFrom, dateTo])
+
+  useEffect(() => {
+    if (!selectedGroup) { setGroupEquipmentFaults([]); setGroupEquipmentError(''); return }
+    setGroupEquipmentLoading(true)
+    setGroupEquipmentError('')
+    getEquipmentFaultsByGroup(selectedGroup.id, dateFrom || undefined, dateTo || undefined)
+      .then(setGroupEquipmentFaults)
+      .catch(() => setGroupEquipmentError('Failed to load equipment faults for selected group'))
+      .finally(() => setGroupEquipmentLoading(false))
+  }, [selectedGroup, dateFrom, dateTo])
 
   function fmtHours(mins: number) {
     const h = Math.floor(mins / 60)
@@ -451,7 +535,8 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {/* Top equipment */}
         <div className="card">
-          <h2 className="mb-4 text-sm font-semibold text-gray-700">Top 10 Equipment by Faults</h2>
+          <h2 className="mb-2 text-sm font-semibold text-gray-700">Top 10 Equipment by Faults</h2>
+          <p className="mb-3 text-xs text-gray-500">Click a bar to view its maintenance records.</p>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={stats.top_equipment} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -464,14 +549,24 @@ export default function Dashboard() {
                 tickFormatter={(v: string) => (v.length > 18 ? v.slice(0, 18) + '…' : v)}
               />
               <Tooltip />
-              <Bar dataKey="fault_count" name="Faults" fill="#6366f1" radius={[0, 4, 4, 0]} />
+              <Bar dataKey="fault_count" name="Faults" radius={[0, 4, 4, 0]}>
+                {stats.top_equipment.map((eq) => (
+                  <Cell
+                    key={eq.id}
+                    fill="#6366f1"
+                    cursor="pointer"
+                    onClick={() => { setEquipModal({ id: eq.id, name: eq.name }); setEquipRecordsPage(0) }}
+                  />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
 
         {/* Top artisans */}
         <div className="card">
-          <h2 className="mb-4 text-sm font-semibold text-gray-700">Top Artisans by Jobs</h2>
+          <h2 className="mb-2 text-sm font-semibold text-gray-700">Top Artisans by Jobs</h2>
+          <p className="mb-3 text-xs text-gray-500">Click a bar to view their maintenance records.</p>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={stats.top_artisans}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -482,14 +577,24 @@ export default function Dashboard() {
               />
               <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
               <Tooltip />
-              <Bar dataKey="job_count" name="Jobs" fill="#22c55e" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="job_count" name="Jobs" radius={[4, 4, 0, 0]}>
+                {stats.top_artisans.map((a) => (
+                  <Cell
+                    key={a.name}
+                    fill="#22c55e"
+                    cursor="pointer"
+                    onClick={() => { setArtisanModal(a.name); setArtisanRecordsPage(0) }}
+                  />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
 
       <div className="card">
-        <h2 className="mb-4 text-sm font-semibold text-gray-700">Equipment Group Faults</h2>
+        <h2 className="mb-2 text-sm font-semibold text-gray-700">Equipment Group Faults</h2>
+        <p className="mb-3 text-xs text-gray-500">Click a bar to see top 10 equipment faults for that group.</p>
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={stats.equipment_group_faults} layout="vertical">
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -502,9 +607,95 @@ export default function Dashboard() {
               tickFormatter={(v: string) => (v.length > 24 ? v.slice(0, 24) + '…' : v)}
             />
             <Tooltip />
-            <Bar dataKey="fault_count" name="Faults" fill="#f59e0b" radius={[0, 4, 4, 0]} />
+            <Bar dataKey="fault_count" name="Faults" radius={[0, 4, 4, 0]}>
+              {stats.equipment_group_faults.map((g) => (
+                <Cell
+                  key={g.id}
+                  fill={selectedGroup?.id === g.id ? '#d97706' : '#f59e0b'}
+                  cursor="pointer"
+                  onClick={() => {
+                    if (selectedGroup?.id === g.id) {
+                      setSelectedGroup(null)
+                    } else {
+                      setSelectedGroup({ id: g.id, name: g.name })
+                    }
+                  }}
+                />
+              ))}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
+      </div>
+
+      {/* Group equipment faults drill-down */}
+      <div className="card">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="mb-1 text-sm font-semibold text-gray-700">
+              {selectedGroup ? `Top Equipment Faults — ${selectedGroup.name}` : 'Top Equipment Faults by Group'}
+            </h2>
+            <p className="text-xs text-gray-500">
+              {selectedGroup
+                ? 'Showing top 10 equipment by fault count for the selected group.'
+                : 'Select a group from the chart above to drill into its equipment faults.'}
+            </p>
+          </div>
+          {selectedGroup && (
+            <button
+              type="button"
+              className="btn-secondary btn-xs"
+              onClick={() => setSelectedGroup(null)}
+            >
+              Clear selection
+            </button>
+          )}
+        </div>
+
+        {groupEquipmentError ? (
+          <div className="flex h-64 items-center justify-center text-red-600">
+            {groupEquipmentError}
+          </div>
+        ) : selectedGroup ? (
+          groupEquipmentLoading ? (
+            <div className="flex h-64 items-center justify-center"><LoadingSpinner size="lg" /></div>
+          ) : groupEquipmentFaults.length > 0 ? (
+            <>
+              <p className="mb-3 text-xs text-gray-500">Click an equipment bar to view its maintenance records.</p>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={groupEquipmentFaults} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    tick={{ fontSize: 10 }}
+                    width={160}
+                    tickFormatter={(v: string) => (v.length > 20 ? v.slice(0, 20) + '…' : v)}
+                  />
+                  <Tooltip />
+                  <Bar dataKey="fault_count" name="Faults" radius={[0, 4, 4, 0]}>
+                    {groupEquipmentFaults.map((eq, i) => (
+                      <Cell
+                        key={eq.id}
+                        fill={COLORS[i % COLORS.length]}
+                        cursor="pointer"
+                        onClick={() => { setEquipModal({ id: eq.id, name: eq.name }); setEquipRecordsPage(0) }}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </>
+          ) : (
+            <div className="flex h-64 items-center justify-center text-gray-500">
+              No equipment faults found for this group in the selected date range.
+            </div>
+          )
+        ) : (
+          <div className="flex h-64 items-center justify-center text-gray-500">
+            Click a group bar to drill into its equipment faults.
+          </div>
+        )}
       </div>
 
       {/* ── Equipment Records Modal ─────────────────────────────────────── */}
@@ -608,6 +799,118 @@ export default function Dashboard() {
                         className="btn-secondary btn-sm"
                         onClick={() => setEquipRecordsPage((p) => p + 1)}
                         disabled={(equipRecordsPage + 1) * RECORDS_PAGE_SIZE >= equipRecordsTotal}
+                      >
+                        Next <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Artisan Records Modal ───────────────────────────────────────── */}
+      {artisanModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto"
+          onClick={() => setArtisanModal(null)}
+        >
+          <div className="card w-full max-w-4xl my-8 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-800">{artisanModal}</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Maintenance records — click a row to open it</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={downloadArtisanRecordsPdf}
+                  disabled={artisanPdfDownloading || artisanRecordsLoading}
+                  className="btn-primary btn-sm flex items-center gap-1.5"
+                >
+                  {artisanPdfDownloading ? <LoadingSpinner size="sm" /> : <Download className="h-3.5 w-3.5" />}
+                  {artisanPdfDownloading ? 'Generating…' : 'Download PDF'}
+                </button>
+                <button
+                  onClick={() => setArtisanModal(null)}
+                  className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {artisanRecordsLoading ? (
+              <div className="flex h-40 items-center justify-center"><LoadingSpinner size="lg" /></div>
+            ) : artisanRecordsError ? (
+              <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600">{artisanRecordsError}</div>
+            ) : artisanRecords.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-10">No maintenance records found for this artisan.</p>
+            ) : (
+              <>
+                <div className="table-container">
+                  <table className="table text-sm">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>MR No.</th>
+                        <th>Issue</th>
+                        <th>Equipment</th>
+                        <th>Downtime</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {artisanRecords.map((r) => (
+                        <tr
+                          key={r.id}
+                          className="cursor-pointer hover:bg-blue-50/50 transition-colors"
+                          onClick={() => {
+                            setArtisanModal(null)
+                            navigate('/records', { state: { openRecordId: r.id } })
+                          }}
+                        >
+                          <td className="text-gray-600">{r.record_date}</td>
+                          <td className="font-mono text-xs text-gray-500">{r.mr_no || '—'}</td>
+                          <td className="max-w-[240px] truncate">{r.issue_description || '—'}</td>
+                          <td className="text-gray-600">{r.equipment_name || '—'}</td>
+                          <td className="text-gray-600">{r.downtime_minutes > 0 ? `${r.downtime_minutes} min` : '—'}</td>
+                          <td>
+                            <span className={`badge ${
+                              r.status === 'closed' ? 'bg-green-100 text-green-800'
+                              : r.status === 'in-progress' ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-red-100 text-red-800'
+                            }`}>
+                              {r.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {artisanRecordsTotal > RECORDS_PAGE_SIZE && (
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-sm text-gray-500">
+                      Showing {artisanRecordsPage * RECORDS_PAGE_SIZE + 1}–{Math.min((artisanRecordsPage + 1) * RECORDS_PAGE_SIZE, artisanRecordsTotal)} of {artisanRecordsTotal}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="btn-secondary btn-sm"
+                        onClick={() => setArtisanRecordsPage((p) => Math.max(0, p - 1))}
+                        disabled={artisanRecordsPage === 0}
+                      >
+                        <ChevronLeft className="h-4 w-4" /> Previous
+                      </button>
+                      <span className="text-sm text-gray-600">
+                        Page {artisanRecordsPage + 1} of {Math.ceil(artisanRecordsTotal / RECORDS_PAGE_SIZE)}
+                      </span>
+                      <button
+                        className="btn-secondary btn-sm"
+                        onClick={() => setArtisanRecordsPage((p) => p + 1)}
+                        disabled={(artisanRecordsPage + 1) * RECORDS_PAGE_SIZE >= artisanRecordsTotal}
                       >
                         Next <ChevronRight className="h-4 w-4" />
                       </button>

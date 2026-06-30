@@ -234,9 +234,9 @@ export interface DashboardStats {
   closed_faults: number
   total_downtime_minutes: number
   avg_repair_time_minutes: number
-  top_equipment: Array<{ name: string; fault_count: number; total_downtime: number }>
+  top_equipment: Array<{ id: number; name: string; fault_count: number; total_downtime: number }>
   downtime_by_plant: Array<{ id: number; name: string; total_downtime: number; fault_count: number }>
-  equipment_group_faults: Array<{ name: string; fault_count: number; total_downtime: number }>
+  equipment_group_faults: Array<{ id: number; name: string; fault_count: number; total_downtime: number }>
   faults_by_day: Array<{ date: string; count: number; downtime: number }>
   top_artisans: Array<{ name: string; job_count: number; total_downtime: number }>
 }

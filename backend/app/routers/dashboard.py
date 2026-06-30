@@ -94,13 +94,14 @@ def get_dashboard_stats(
     # Top 10 equipment by fault count
     top_equipment = (
         db.query(
+            Equipment.id,
             Equipment.equipment_name,
             func.count(MaintenanceRecord.id).label("fault_count"),
             func.sum(MaintenanceRecord.downtime_minutes).label("total_downtime"),
         )
         .join(MaintenanceRecord, Equipment.id == MaintenanceRecord.equipment_id)
         .filter(*period_filters)
-        .group_by(Equipment.equipment_name)
+        .group_by(Equipment.id, Equipment.equipment_name)
         .order_by(func.count(MaintenanceRecord.id).desc())
         .limit(10)
         .all()
@@ -109,6 +110,7 @@ def get_dashboard_stats(
     # Top equipment groups by faults
     equipment_group_faults = (
         db.query(
+            EquipmentGroup.id,
             EquipmentGroup.name,
             func.count(MaintenanceRecord.id).label("fault_count"),
             func.sum(MaintenanceRecord.downtime_minutes).label("total_downtime"),
@@ -116,7 +118,7 @@ def get_dashboard_stats(
         .join(Equipment, EquipmentGroup.id == Equipment.equipment_group_id)
         .join(MaintenanceRecord, Equipment.id == MaintenanceRecord.equipment_id)
         .filter(*period_filters)
-        .group_by(EquipmentGroup.name)
+        .group_by(EquipmentGroup.id, EquipmentGroup.name)
         .order_by(func.count(MaintenanceRecord.id).desc())
         .limit(10)
         .all()
@@ -177,6 +179,7 @@ def get_dashboard_stats(
         "avg_repair_time_minutes": round(float(avg_repair_time), 1),
         "top_equipment": [
             {
+                "id": e.id,
                 "name": e.equipment_name,
                 "fault_count": e.fault_count,
                 "total_downtime": e.total_downtime or 0,
@@ -185,6 +188,7 @@ def get_dashboard_stats(
         ],
         "equipment_group_faults": [
             {
+                "id": g.id,
                 "name": g.name,
                 "fault_count": g.fault_count,
                 "total_downtime": g.total_downtime or 0,
@@ -248,4 +252,40 @@ def get_equipment_downtime_for_plant(
             "fault_count": e.fault_count,
         }
         for e in equipment_downtime
+    ]
+
+
+@router.get("/equipment-faults-by-group")
+def get_equipment_faults_by_group(
+    group_id: int = Query(...),
+    date_from: Optional[date_type] = Query(None),
+    date_to: Optional[date_type] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    period_filters = build_period_filters(date_from, date_to, None, None)
+
+    equipment_faults = (
+        db.query(
+            Equipment.id,
+            Equipment.equipment_name,
+            func.count(MaintenanceRecord.id).label("fault_count"),
+            func.sum(MaintenanceRecord.downtime_minutes).label("total_downtime"),
+        )
+        .join(MaintenanceRecord, Equipment.id == MaintenanceRecord.equipment_id)
+        .filter(*period_filters, Equipment.equipment_group_id == group_id)
+        .group_by(Equipment.id, Equipment.equipment_name)
+        .order_by(func.count(MaintenanceRecord.id).desc())
+        .limit(10)
+        .all()
+    )
+
+    return [
+        {
+            "id": e.id,
+            "name": e.equipment_name,
+            "fault_count": e.fault_count,
+            "total_downtime": e.total_downtime or 0,
+        }
+        for e in equipment_faults
     ]
